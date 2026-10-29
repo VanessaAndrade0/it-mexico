@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IT Mexico</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- Pantalla de inicio de sesión -->
+  <section id="login" class="login" hidden>
+    <form id="loginForm" class="card login-card">
+      <h1>IT Mexico</h1>
+      <p class="muted">Inventario de soporte TI</p>
+      <label for="loginEmail">Correo</label>
+      <input id="loginEmail" type="email" required autocomplete="username">
+      <label for="loginPass">Contraseña</label>
+      <input id="loginPass" type="password" required autocomplete="current-password">
+      <button class="btn primary" type="submit">Entrar</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </section>
+
+  <!-- Aplicación -->
+  <div id="app" hidden>
+    <header class="band">
+      <div class="wrap header-row">
+        <h1>IT Mexico</h1>
+        <div class="user"><span id="userEmail"></span><button class="btn small ghost" id="btnLogout">Salir</button></div>
+      </div>
+      <nav class="wrap tabs" id="tabs">
+        <button data-tab="inventario" class="active">Inventario <span class="badge" id="lowBadge" hidden></span></button>
+        <button data-tab="movimientos">Movimientos</button>
+        <button data-tab="proveedores">Proveedores</button>
+      </nav>
+    </header>
+
+    <main class="wrap">
+      <!-- INVENTARIO -->
+      <section data-view="inventario">
+        <div class="section-head">
+          <h2>Inventario</h2>
+          <button class="btn primary" id="btnNuevoArticulo">+ Nuevo artículo</button>
+        </div>
+        <div id="alertaBajo" class="alert" hidden></div>
+        <input id="buscarArticulo" placeholder="Buscar por nombre, SKU o ubicación">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>SKU</th><th>Artículo</th><th>Categoría</th><th>Ubicación</th><th>Proveedores</th><th class="num">Stock</th><th class="num">Mínimo</th></tr></thead>
+            <tbody id="tablaArticulos"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MOVIMIENTOS -->
+      <section data-view="movimientos" hidden>
+        <h2>Registrar movimiento</h2>
+        <form id="formMovimiento" class="card form-grid">
+          <label>Tipo
+            <select id="movTipo">
+              <option value="salida">Salida</option>
+              <option value="entrada">Entrada</option>
+              <option value="ajuste">Ajuste (+/−)</option>
+            </select>
+          </label>
+          <label class="span2">Artículo <select id="movArticulo" required></select></label>
+          <label>Cantidad <input id="movCantidad" type="number" value="1" required></label>
+          <label>Ticket (REQ) <input id="movTicket"></label>
+          <label>Sucursal <input id="movSucursal" maxlength="5"></label>
+          <label>Quién lo pidió <input id="movSolicitante"></label>
+          <label>LPN <input id="movLpn"></label>
+          <label id="movProveedorWrap" hidden>Proveedor <select id="movProveedor"></select></label>
+          <label class="span-all">Nota <input id="movNota"></label>
+          <div class="span-all row"><button class="btn primary" type="submit">Registrar</button><span id="movMensaje" class="muted"></span></div>
+        </form>
+
+        <h2>Historial</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Artículo</th><th class="num">Cant.</th><th>Ticket</th><th>Sucursal</th><th>Pidió</th><th>LPN</th><th>Registró</th></tr></thead>
+            <tbody id="tablaMovimientos"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PROVEEDORES -->
+      <section data-view="proveedores" hidden>
+        <div class="section-head">
+          <h2>Proveedores</h2>
+          <button class="btn primary" id="btnNuevoProveedor">+ Nuevo proveedor</button>
+        </div>
+        <div id="listaProveedores" class="cards"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Ventana para formularios -->
+  <dialog id="modal"></dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
