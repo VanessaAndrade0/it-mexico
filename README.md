@@ -8,6 +8,9 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 - Inventario con búsqueda, mínimo por artículo y alerta cuando el stock llega al mínimo.
 - Registro de salidas, entradas y ajustes con ticket (REQ), sucursal, quién lo pidió y LPN.
 - El stock se actualiza solo en la base de datos con cada movimiento.
+- Editar fecha, ticket, sucursal, solicitante, LPN y nota de un movimiento sin afectar el stock.
+- Anular un movimiento con motivo: el stock se corrige y el registro queda en el historial como anulado.
+- Eliminar artículos sin movimientos y proveedores.
 - Proveedores con contacto, correo y teléfono. Un artículo puede tener varios proveedores.
 
 ## Tecnologías
@@ -18,7 +21,7 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 ## Cómo ponerla en marcha
 
 1. Crea un proyecto en Supabase.
-2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`.
+2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql` y después `sql/02_anular_y_editar.sql`.
 3. En **Authentication > Sign In / Providers** desactiva "Allow new users to sign up", para que nadie más pueda crear cuenta.
 4. En **Authentication > Users > Add user** crea una cuenta para cada persona que la va a usar.
 5. En **Project Settings > API** copia la URL y la *anon key* y pégalas en `js/config.js`.
@@ -43,6 +46,8 @@ js/movimientos.js   Entradas, salidas y ajustes
 js/proveedores.js   Proveedores
 js/util.js          Funciones de apoyo
 sql/schema.sql      Tablas, reglas de seguridad y cálculo de stock
+sql/02_anular_y_editar.sql   Editar y anular movimientos
+sql/limpiar_pruebas.sql      Borra todos los registros para empezar de cero
 ```
 
 ## Próximas funciones

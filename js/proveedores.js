@@ -35,9 +35,24 @@ function abrirProveedor(proveedor, recargar) {
     <label>Teléfono <input name="telefono" value="${esc(p.telefono || "")}"></label>
     <label>Notas <input name="notas" value="${esc(p.notas || "")}"></label>
     <p class="error" id="errProveedor"></p>
-    <div class="row"><button class="btn primary" value="guardar">Guardar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button></div>
+    <div class="row"><button class="btn primary" value="guardar">Guardar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button>${nuevo ? "" : `<button class="btn danger" type="button" id="btnEliminarProveedor">Eliminar</button>`}</div>
   </form>`;
   modal.showModal();
+
+  // Eliminar pide un segundo clic para confirmar.
+  // Los movimientos de este proveedor se conservan, solo quedan sin proveedor.
+  $("#btnEliminarProveedor")?.addEventListener("click", async e => {
+    const boton = e.currentTarget;
+    if (!boton.dataset.confirmar) {
+      boton.dataset.confirmar = "1";
+      boton.textContent = "Confirmar: eliminar";
+      return;
+    }
+    const { error } = await supabase.from("proveedores").delete().eq("id", p.id);
+    if (error) { $("#errProveedor").textContent = "No se pudo eliminar."; return; }
+    modal.close();
+    recargar();
+  });
 
   $("#formProveedor").addEventListener("submit", async e => {
     if (e.submitter?.value !== "guardar") return;

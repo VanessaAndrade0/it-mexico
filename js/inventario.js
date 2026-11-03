@@ -57,9 +57,28 @@ function abrirArticulo(articulo, recargar) {
     <div class="checklist">${estado.proveedores.map(p =>
       `<label><input type="checkbox" name="prov" value="${p.id}" ${mios.includes(p.id) ? "checked" : ""}> ${esc(p.nombre)}</label>`).join("") || '<span class="muted">Agrega proveedores en su pestaña.</span>'}</div>
     <p class="error" id="errArticulo"></p>
-    <div class="row"><button class="btn primary" value="guardar">Guardar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button></div>
+    <div class="row"><button class="btn primary" value="guardar">Guardar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button>${nuevo ? "" : `<button class="btn danger" type="button" id="btnEliminarArticulo">Eliminar</button>`}</div>
   </form>`;
   modal.showModal();
+
+  // Eliminar pide un segundo clic para confirmar
+  $("#btnEliminarArticulo")?.addEventListener("click", async e => {
+    const boton = e.currentTarget;
+    if (!boton.dataset.confirmar) {
+      boton.dataset.confirmar = "1";
+      boton.textContent = "Confirmar: eliminar";
+      return;
+    }
+    const { error } = await supabase.from("articulos").delete().eq("id", a.id);
+    if (error) {
+      $("#errArticulo").textContent = error.code === "23503"
+        ? "Este artículo tiene movimientos y no se puede eliminar. Si ya no se usa, deja su mínimo en 0."
+        : "No se pudo eliminar.";
+      return;
+    }
+    modal.close();
+    recargar();
+  });
 
   $("#formArticulo").addEventListener("submit", async e => {
     if (e.submitter?.value !== "guardar") return;

@@ -68,6 +68,12 @@ tr.clic:hover td { background: var(--accent-soft); }
 tr.bajo td { background: var(--warn-soft); }
 tr.agotado td { background: var(--danger-soft); }
 .empty { text-align: center; color: var(--muted); padding: 20px; }
+.nota { font-size: 12px; color: var(--muted); }
+.acciones { white-space: nowrap; }
+.acciones .btn + .btn { margin-left: 6px; }
+tr.anulado td { color: var(--muted); }
+tr.anulado td:not(.acciones) { text-decoration: line-through; }
+.etiqueta { display: inline-block; background: var(--danger-soft); color: var(--danger); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
 
 .alert { background: var(--warn-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
 
