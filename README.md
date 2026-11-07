@@ -13,17 +13,19 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 - Trucks: registrar lo que viene en camino (número de truck, fecha, proveedor, LPN y artículos) y recibirlo para dar entrada al inventario de una sola vez.
 - Órdenes de compra con fecha de orden y llegada estimada: avisos de trucks atrasados o por llegar y tiempo de entrega promedio por proveedor.
 - Eliminar artículos sin movimientos y proveedores.
+- Importar el inventario desde Excel (eligiendo qué columna es cada dato) y descargar un reporte mensual en Excel para las juntas.
 - Proveedores con contacto, correo y teléfono. Un artículo puede tener varios proveedores.
 
 ## Tecnologías
 
 - HTML, CSS y JavaScript (módulos), sin frameworks.
 - [Supabase](https://supabase.com) para base de datos (PostgreSQL) e inicio de sesión.
+- [SheetJS](https://sheetjs.com) para leer y crear archivos de Excel.
 
 ## Cómo ponerla en marcha
 
 1. Crea un proyecto en Supabase.
-2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`, después `sql/02_anular_y_editar.sql` `sql/03_eliminar_y_trucks.sql` y al final `sql/04_ordenes_y_entregas.sql`.
+2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`, después `sql/02_anular_y_editar.sql`, `sql/03_eliminar_y_trucks.sql` y al final `sql/04_ordenes_y_entregas.sql`.
 3. En **Authentication > Sign In / Providers** desactiva "Allow new users to sign up", para que nadie más pueda crear cuenta.
 4. En **Authentication > Users > Add user** crea una cuenta para cada persona que la va a usar.
 5. En **Project Settings > API** copia la URL y la *anon key* y pégalas en `js/config.js`.
@@ -47,6 +49,7 @@ js/inventario.js    Artículos y alerta de stock bajo
 js/movimientos.js   Entradas, salidas y ajustes
 js/proveedores.js   Proveedores
 js/truck.js         Trucks que llegan y su recepción
+js/excel.js         Importar inventario y reporte mensual en Excel
 js/util.js          Funciones de apoyo
 sql/schema.sql      Tablas, reglas de seguridad y cálculo de stock
 sql/02_anular_y_editar.sql   Editar y anular movimientos

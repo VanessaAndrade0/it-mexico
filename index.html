@@ -34,6 +34,7 @@
         <button data-tab="movimientos">Movimientos</button>
         <button data-tab="trucks">Trucks <span class="badge info" id="trucksBadge" hidden></span></button>
         <button data-tab="proveedores">Proveedores</button>
+        <button data-tab="excel">Excel</button>
       </nav>
     </header>
 
@@ -112,6 +113,7 @@
 
         <h2>Tiempo de entrega por proveedor</h2>
         <p class="muted">Días desde la orden de compra hasta la llegada, contando solo trucks recibidos que tienen fecha de orden.</p>
+        <div id="graficaEntregas" class="card grafica" hidden></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Proveedor</th><th class="num">Trucks recibidos</th><th class="num">Promedio</th><th class="num">Más rápido</th><th class="num">Más lento</th><th class="num">A tiempo</th></tr></thead>
@@ -128,12 +130,43 @@
         </div>
         <div id="listaProveedores" class="cards"></div>
       </section>
+
+      <!-- EXCEL -->
+      <section data-view="excel" hidden>
+        <h2>Importar inventario</h2>
+        <div class="card pasos-excel">
+          <p class="muted">Sube el Excel del inventario que ya tienen. Los artículos nuevos se crean y los que ya existen se actualizan (se reconocen por nombre o SKU).</p>
+          <label>Archivo (.xlsx, .xls o .csv) <input type="file" id="impArchivo" accept=".xlsx,.xls,.csv"></label>
+          <div id="impPaso2" hidden>
+            <label>Hoja <select id="impHoja"></select></label>
+            <h3>¿Qué columna es cada dato?</h3>
+            <div class="form-grid" id="impMapa"></div>
+            <h3>Vista previa</h3>
+            <p id="impResumen"></p>
+            <div class="table-wrap" id="impVista"></div>
+            <label class="check"><input type="checkbox" id="impStock" checked> Actualizar el stock de los artículos que ya existen con lo que dice el Excel (se guarda como ajuste en el historial)</label>
+            <div class="row"><button class="btn primary" id="btnImportar">Importar</button></div>
+          </div>
+          <p class="muted" id="impMensaje"></p>
+        </div>
+
+        <h2>Reporte del mes</h2>
+        <div class="card pasos-excel">
+          <p class="muted">Descarga un Excel para la junta mensual con: resumen, inventario de hoy, salidas, entradas, consumo por artículo y por sucursal, trucks y tiempos de entrega por proveedor.</p>
+          <div class="row">
+            <label>Mes <input type="month" id="expMes"></label>
+            <button class="btn primary" id="btnExportar">Descargar Excel</button>
+          </div>
+          <p class="muted" id="expMensaje"></p>
+        </div>
+      </section>
     </main>
   </div>
 
   <!-- Ventana para formularios -->
   <dialog id="modal"></dialog>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ import { iniciarInventario, renderInventario } from "./inventario.js";
 import { iniciarMovimientos, renderMovimientos } from "./movimientos.js";
 import { iniciarProveedores, renderProveedores } from "./proveedores.js";
 import { iniciarTrucks, renderTrucks } from "./truck.js";
+import { iniciarExcel } from "./excel.js";
 
 // Trae todo de Supabase y vuelve a dibujar las pantallas
 async function recargar() {
@@ -40,4 +41,5 @@ iniciarInventario(recargar);
 iniciarMovimientos(recargar);
 iniciarProveedores(recargar);
 iniciarTrucks(recargar);
+iniciarExcel(recargar);
 iniciarAuth(recargar);

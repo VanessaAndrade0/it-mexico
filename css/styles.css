@@ -121,3 +121,34 @@ dialog form { display: grid; gap: 12px; }
 @media (max-width: 560px) {
   .span2 { grid-column: auto; }
 }
+
+/* Gráfica de tiempos de entrega */
+.grafica { margin-bottom: 14px; }
+.grafica-entregas { display: grid; gap: 6px; }
+.fila-entrega { display: grid; grid-template-columns: 170px 1fr 90px; gap: 14px; align-items: center; min-height: 40px; }
+.fila-entrega .prov { font-weight: 600; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fila-entrega .valor { font-variant-numeric: tabular-nums; }
+.pista { position: relative; height: 28px; margin: 0 8px; }
+.pista .guia { position: absolute; top: -6px; bottom: -6px; width: 1px; background: var(--line); }
+.pista .rango, .leyenda .rango { position: absolute; top: 11px; height: 6px; border-radius: 3px; background: var(--accent); opacity: .35; }
+.pista .punto, .leyenda .punto { position: absolute; top: 9px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 1.5px solid var(--accent); background: var(--surface); box-sizing: border-box; }
+.pista .punto.grande, .leyenda .punto.grande { top: 6px; width: 16px; height: 16px; margin-left: -8px; background: var(--accent); border: 0; }
+.fila-entrega.eje { min-height: 20px; }
+.fila-entrega.eje .pista { height: 20px; }
+.pista .marca { position: absolute; transform: translateX(-50%); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.eje-titulo { text-align: center; font-size: 13px; color: var(--muted); margin: 0; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.leyenda > span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda i { position: relative !important; top: 0 !important; margin: 0 !important; display: inline-block; }
+.leyenda .rango { width: 28px; }
+@media (max-width: 560px) {
+  .fila-entrega { grid-template-columns: 90px 1fr 64px; gap: 8px; font-size: 13px; }
+}
+
+/* Excel */
+.pasos-excel { display: grid; gap: 12px; }
+.pasos-excel h3 { margin: 6px 0 0; font-size: 16px; }
+.pasos-excel #impPaso2 { display: grid; gap: 12px; }
+.pasos-excel .row label { flex: 0 1 220px; }
+.pasos-excel .row .btn { align-self: end; }
+.pie-tabla { padding: 8px 10px; margin: 0; }
