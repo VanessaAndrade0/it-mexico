@@ -45,6 +45,7 @@
           <button class="btn primary" id="btnNuevoArticulo">+ Nuevo artículo</button>
         </div>
         <div id="alertaBajo" class="alert" hidden></div>
+        <div id="alertaTrucksInicio" class="alert" hidden></div>
         <input id="buscarArticulo" placeholder="Buscar por nombre, SKU o ubicación">
         <div class="table-wrap">
           <table>
@@ -91,19 +92,30 @@
           <h2>Trucks</h2>
           <button class="btn primary" id="btnNuevoTruck">+ Nuevo truck</button>
         </div>
-        <p class="muted">Registra lo que viene en camino y márcalo como recibido cuando llegue: el material entra al inventario solo.</p>
+        <p class="muted">Registra cada orden de compra con su fecha estimada. Cuando llegue, dale Recibir: el material entra al inventario y se calcula cuánto tardó el proveedor.</p>
+        <div id="alertasTrucks" class="alertas"></div>
         <div class="row filtros">
-          <input id="buscarTruck" placeholder="Buscar por truck, LPN, proveedor o artículo">
+          <input id="buscarTruck" placeholder="Buscar por orden de compra, truck, LPN, proveedor o artículo">
           <select id="filtroTruck">
             <option value="">Todos</option>
             <option value="en_camino">En camino</option>
+            <option value="atrasado">Atrasados</option>
             <option value="recibido">Recibidos</option>
           </select>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>Truck</th><th>Proveedor</th><th>LPN</th><th>Artículos</th><th class="num">Piezas</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Orden de compra</th><th>Truck</th><th>Proveedor</th><th>Artículos</th><th>Llegada</th><th class="num">Días de entrega</th><th>Estado</th><th></th></tr></thead>
             <tbody id="tablaTrucks"></tbody>
+          </table>
+        </div>
+
+        <h2>Tiempo de entrega por proveedor</h2>
+        <p class="muted">Días desde la orden de compra hasta la llegada, contando solo trucks recibidos que tienen fecha de orden.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Proveedor</th><th class="num">Trucks recibidos</th><th class="num">Promedio</th><th class="num">Más rápido</th><th class="num">Más lento</th><th class="num">A tiempo</th></tr></thead>
+            <tbody id="tablaEntregas"></tbody>
           </table>
         </div>
       </section>

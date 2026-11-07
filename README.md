@@ -11,6 +11,7 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 - Editar fecha, ticket, sucursal, solicitante, LPN y nota de un movimiento sin afectar el stock.
 - Eliminar un movimiento: el stock se corrige solo.
 - Trucks: registrar lo que viene en camino (número de truck, fecha, proveedor, LPN y artículos) y recibirlo para dar entrada al inventario de una sola vez.
+- Órdenes de compra con fecha de orden y llegada estimada: avisos de trucks atrasados o por llegar y tiempo de entrega promedio por proveedor.
 - Eliminar artículos sin movimientos y proveedores.
 - Proveedores con contacto, correo y teléfono. Un artículo puede tener varios proveedores.
 
@@ -22,7 +23,7 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 ## Cómo ponerla en marcha
 
 1. Crea un proyecto en Supabase.
-2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`, después `sql/02_anular_y_editar.sql` y al final `sql/03_eliminar_y_trucks.sql`.
+2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`, después `sql/02_anular_y_editar.sql` `sql/03_eliminar_y_trucks.sql` y al final `sql/04_ordenes_y_entregas.sql`.
 3. En **Authentication > Sign In / Providers** desactiva "Allow new users to sign up", para que nadie más pueda crear cuenta.
 4. En **Authentication > Users > Add user** crea una cuenta para cada persona que la va a usar.
 5. En **Project Settings > API** copia la URL y la *anon key* y pégalas en `js/config.js`.
@@ -45,11 +46,12 @@ js/estado.js        Datos compartidos entre pantallas
 js/inventario.js    Artículos y alerta de stock bajo
 js/movimientos.js   Entradas, salidas y ajustes
 js/proveedores.js   Proveedores
-js/trucks.js        Trucks que llegan y su recepción
+js/truck.js         Trucks que llegan y su recepción
 js/util.js          Funciones de apoyo
 sql/schema.sql      Tablas, reglas de seguridad y cálculo de stock
 sql/02_anular_y_editar.sql   Editar y anular movimientos
 sql/03_eliminar_y_trucks.sql Eliminar movimientos y tablas de trucks
+sql/04_ordenes_y_entregas.sql Órdenes de compra y fechas de entrega
 sql/limpiar_pruebas.sql      Borra todos los registros para empezar de cero
 ```
 
