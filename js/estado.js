@@ -4,6 +4,7 @@ export const estado = {
   proveedores: [],
   relaciones: [], // { articulo_id, proveedor_id }
   movimientos: [],
+  trucks: [], // recepciones con sus artículos
 };
 
 export function proveedoresDe(articuloId) {

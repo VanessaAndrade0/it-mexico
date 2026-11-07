@@ -70,9 +70,22 @@ tr.agotado td { background: var(--danger-soft); }
 .empty { text-align: center; color: var(--muted); padding: 20px; }
 .nota { font-size: 12px; color: var(--muted); }
 .acciones { white-space: nowrap; }
-.acciones .btn + .btn { margin-left: 6px; }
+.acciones > * + * { margin-left: 6px; }
 tr.anulado td { color: var(--muted); }
 tr.anulado td:not(.acciones) { text-decoration: line-through; }
+/* Trucks */
+.badge.info { background: #FFFFFF; color: var(--accent); }
+.filtros { margin: 10px 0; }
+.filtros input { flex: 1 1 260px; width: auto; }
+.filtros select { flex: 0 1 180px; width: auto; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 20px; white-space: nowrap; }
+.pill.camino { background: var(--warn-soft); color: var(--warn); }
+.pill.recibido { background: #E1F3EA; color: #1D7F55; }
+.lineas { display: grid; gap: 8px; }
+.linea { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; align-items: center; }
+.check { display: flex; flex-direction: row; align-items: center; gap: 8px; font-weight: 500; color: var(--text); }
+.check input { width: auto; }
+.lista-simple { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .etiqueta { display: inline-block; background: var(--danger-soft); color: var(--danger); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
 
 .alert { background: var(--warn-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-top: 10px; }

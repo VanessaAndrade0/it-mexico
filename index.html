@@ -32,6 +32,7 @@
       <nav class="wrap tabs" id="tabs">
         <button data-tab="inventario" class="active">Inventario <span class="badge" id="lowBadge" hidden></span></button>
         <button data-tab="movimientos">Movimientos</button>
+        <button data-tab="trucks">Trucks <span class="badge info" id="trucksBadge" hidden></span></button>
         <button data-tab="proveedores">Proveedores</button>
       </nav>
     </header>
@@ -80,6 +81,29 @@
           <table>
             <thead><tr><th>Fecha</th><th>Tipo</th><th>Artículo</th><th class="num">Cant.</th><th>Ticket</th><th>Sucursal</th><th>Pidió</th><th>LPN</th><th>Registró</th><th></th></tr></thead>
             <tbody id="tablaMovimientos"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TRUCKS -->
+      <section data-view="trucks" hidden>
+        <div class="section-head">
+          <h2>Trucks</h2>
+          <button class="btn primary" id="btnNuevoTruck">+ Nuevo truck</button>
+        </div>
+        <p class="muted">Registra lo que viene en camino y márcalo como recibido cuando llegue: el material entra al inventario solo.</p>
+        <div class="row filtros">
+          <input id="buscarTruck" placeholder="Buscar por truck, LPN, proveedor o artículo">
+          <select id="filtroTruck">
+            <option value="">Todos</option>
+            <option value="en_camino">En camino</option>
+            <option value="recibido">Recibidos</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Truck</th><th>Proveedor</th><th>LPN</th><th>Artículos</th><th class="num">Piezas</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="tablaTrucks"></tbody>
           </table>
         </div>
       </section>

@@ -5,23 +5,27 @@ import { iniciarAuth } from "./auth.js";
 import { iniciarInventario, renderInventario } from "./inventario.js";
 import { iniciarMovimientos, renderMovimientos } from "./movimientos.js";
 import { iniciarProveedores, renderProveedores } from "./proveedores.js";
+import { iniciarTrucks, renderTrucks } from "./trucks.js";
 
 // Trae todo de Supabase y vuelve a dibujar las pantallas
 async function recargar() {
-  const [art, prov, rel, mov] = await Promise.all([
+  const [art, prov, rel, mov, trk] = await Promise.all([
     supabase.from("articulos").select("*").order("nombre"),
     supabase.from("proveedores").select("*").order("nombre"),
     supabase.from("articulo_proveedor").select("*"),
     supabase.from("movimientos").select("*, articulos(nombre)").order("fecha", { ascending: false }).limit(100),
+    supabase.from("recepciones").select("*, proveedores(nombre), recepcion_articulos(id, articulo_id, cantidad, articulos(nombre))").order("fecha", { ascending: false }).limit(200),
   ]);
   estado.articulos = art.data || [];
   estado.proveedores = prov.data || [];
   estado.relaciones = rel.data || [];
   estado.movimientos = mov.data || [];
+  estado.trucks = trk.data || [];
 
   renderInventario();
   renderMovimientos();
   renderProveedores();
+  renderTrucks();
 }
 
 // Cambiar de pestaña
@@ -35,4 +39,5 @@ $("#tabs").addEventListener("click", e => {
 iniciarInventario(recargar);
 iniciarMovimientos(recargar);
 iniciarProveedores(recargar);
+iniciarTrucks(recargar);
 iniciarAuth(recargar);

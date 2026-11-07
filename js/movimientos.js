@@ -30,9 +30,7 @@ export function renderMovimientos() {
         <td>${esc(m.solicitante || "")}</td>
         <td>${esc(m.lpn || "")}</td>
         <td>${esc(m.registrado_por || "")}${m.editado_por ? `<div class="nota">Editado por ${esc(m.editado_por)}</div>` : ""}</td>
-        <td class="acciones">${m.anulado
-          ? `<span class="etiqueta" title="${esc(m.motivo_anulacion || "")}">Anulado</span><div class="nota">${esc(m.anulado_por || "")}</div>`
-          : `<button class="btn small" data-editar="${m.id}">Editar</button><button class="btn small danger" data-anular="${m.id}">Anular</button>`}</td>
+        <td class="acciones">${m.anulado ? `<span class="etiqueta">Anulado</span>` : `<button class="btn small" data-editar="${m.id}">Editar</button>`}<button class="btn small danger" data-eliminar="${m.id}">Eliminar</button></td>
       </tr>`).join("")
     : `<tr><td colspan="10" class="empty">Sin movimientos todavía.</td></tr>`;
 }
@@ -71,12 +69,12 @@ export function iniciarMovimientos(recargar) {
     recargar();
   });
 
-  // Botones Editar y Anular del historial
+  // Botones Editar y Eliminar del historial
   $("#tablaMovimientos").addEventListener("click", e => {
     const editar = e.target.closest("[data-editar]");
-    const anular = e.target.closest("[data-anular]");
+    const eliminar = e.target.closest("[data-eliminar]");
     if (editar) abrirEditar(estado.movimientos.find(m => m.id === editar.dataset.editar), recargar);
-    if (anular) abrirAnular(estado.movimientos.find(m => m.id === anular.dataset.anular), recargar);
+    if (eliminar) abrirEliminar(estado.movimientos.find(m => m.id === eliminar.dataset.eliminar), recargar);
   });
 }
 
@@ -85,7 +83,7 @@ function abrirEditar(m, recargar) {
   const modal = $("#modal");
   modal.innerHTML = `<form method="dialog" id="formEditarMov">
     <h2>Editar movimiento</h2>
-    <p class="muted">${m.tipo} de ${m.cantidad} · ${esc(m.articulos?.nombre || "")}. El artículo y la cantidad no se editan: si están mal, anula este movimiento y registra uno nuevo.</p>
+    <p class="muted">${m.tipo} de ${m.cantidad} · ${esc(m.articulos?.nombre || "")}. El artículo y la cantidad no se editan: si están mal, elimina este movimiento y registra uno nuevo.</p>
     <label>Fecha <input name="fecha" type="datetime-local" required value="${aFechaLocal(m.fecha)}"></label>
     <label>Ticket (REQ) <input name="ticket" value="${esc(m.ticket || "")}"></label>
     <label>Sucursal <input name="sucursal" maxlength="5" value="${esc(m.sucursal || "")}"></label>
@@ -116,27 +114,27 @@ function abrirEditar(m, recargar) {
   });
 }
 
-function abrirAnular(m, recargar) {
+function abrirEliminar(m, recargar) {
   if (!m) return;
   const modal = $("#modal");
-  modal.innerHTML = `<form method="dialog" id="formAnular">
-    <h2>Anular movimiento</h2>
+  const cambio = m.tipo === "salida" ? m.cantidad : -m.cantidad;
+  const signo = cambio > 0 ? "+" : "−";
+  modal.innerHTML = `<form method="dialog" id="formEliminarMov">
+    <h2>Eliminar movimiento</h2>
     <p><b>${m.tipo} de ${m.cantidad}</b> · ${esc(m.articulos?.nombre || "")} · ${formatoFecha(m.fecha)}</p>
-    <p class="muted">El stock regresa a como estaba antes de este movimiento. El registro se queda en el historial marcado como anulado.</p>
-    <label>Motivo <input name="motivo" required placeholder="Ej. se registró dos veces"></label>
-    <p class="error" id="errAnular"></p>
-    <div class="row"><button class="btn danger" value="anular">Anular</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button></div>
+    <p class="muted">${m.anulado
+      ? "Este movimiento ya estaba anulado, así que el stock no cambia."
+      : `El stock se corrige solo (${signo}${Math.abs(cambio)}).`} Se borra del historial y no se puede recuperar.</p>
+    <p class="error" id="errEliminarMov"></p>
+    <div class="row"><button class="btn danger" value="eliminar">Eliminar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button></div>
   </form>`;
   modal.showModal();
 
-  $("#formAnular").addEventListener("submit", async e => {
-    if (e.submitter?.value !== "anular") return;
+  $("#formEliminarMov").addEventListener("submit", async e => {
+    if (e.submitter?.value !== "eliminar") return;
     e.preventDefault();
-    const motivo = new FormData(e.target).get("motivo").trim();
-    const { error } = await supabase.from("movimientos")
-      .update({ anulado: true, motivo_anulacion: motivo })
-      .eq("id", m.id);
-    if (error) { $("#errAnular").textContent = "No se pudo anular: " + error.message; return; }
+    const { error } = await supabase.from("movimientos").delete().eq("id", m.id);
+    if (error) { $("#errEliminarMov").textContent = "No se pudo eliminar: " + error.message; return; }
     modal.close();
     recargar();
   });
