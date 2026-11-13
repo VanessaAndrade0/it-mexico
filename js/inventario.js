@@ -1,26 +1,65 @@
 import { supabase } from "./supabase.js";
 import { estado, proveedoresDe, bajoMinimo } from "./estado.js";
-import { esc, $ } from "./util.js";
+import { esc, $, descargarExcel } from "./util.js";
+import { numero, opciones, agrupar, tablaGrupos } from "./filtros.js";
+
+const estadoDe = a => a.stock <= 0 ? "Agotado" : a.minimo > 0 && a.stock <= a.minimo ? "Bajo mínimo" : "OK";
+const proveedoresTexto = a => proveedoresDe(a.id).map(p => p.nombre).join(", ");
+
+const AGRUPAR = {
+  categoria: { titulo: "Categoría", clave: a => a.categoria, filtro: "#iCategoria" },
+  marca: { titulo: "Marca", clave: a => a.marca, filtro: "#iMarca" },
+  proveedor: { titulo: "Proveedor", clave: a => proveedoresTexto(a) },
+  ubicacion: { titulo: "Ubicación", clave: a => a.ubicacion },
+  estado: { titulo: "Estado", clave: estadoDe, filtro: "#iEstado" },
+};
+
+function filtrar() {
+  const v = id => $(id).value;
+  const q = v("#buscarArticulo").trim().toLowerCase();
+  return estado.articulos.filter(a =>
+    (!v("#iCategoria") || a.categoria === v("#iCategoria")) &&
+    (!v("#iMarca") || a.marca === v("#iMarca")) &&
+    (!v("#iProveedor") || proveedoresDe(a.id).some(p => p.nombre === v("#iProveedor"))) &&
+    (!v("#iEstado") || estadoDe(a) === v("#iEstado")) &&
+    (!q || [a.nombre, a.sku, a.marca, a.modelo, a.ubicacion, a.categoria].join(" ").toLowerCase().includes(q)));
+}
 
 export function renderInventario() {
-  const q = $("#buscarArticulo").value.trim().toLowerCase();
-  const lista = estado.articulos.filter(a =>
-    !q || [a.nombre, a.sku, a.marca, a.modelo, a.ubicacion, a.categoria].join(" ").toLowerCase().includes(q));
+  const unicos = f => [...new Set(estado.articulos.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  opciones($("#iCategoria"), unicos(a => a.categoria));
+  opciones($("#iMarca"), unicos(a => a.marca));
+  opciones($("#iProveedor"), estado.proveedores.map(p => p.nombre).sort((a, b) => a.localeCompare(b)));
 
-  $("#tablaArticulos").innerHTML = lista.length
-    ? lista.map(a => {
+  const lista = filtrar();
+  const piezas = lista.reduce((s, a) => s + a.stock, 0);
+  $("#contadorInventario").innerHTML = `<b>${numero(lista.length)}</b> artículos · <b>${numero(piezas)}</b> piezas en stock${lista.length !== estado.articulos.length ? ` <span class="muted">(de ${numero(estado.articulos.length)} artículos)</span>` : ""}`;
+
+  const modo = $("#iAgrupar").value;
+  if (modo) {
+    const g = AGRUPAR[modo];
+    $("#tablaArticulos").innerHTML = tablaGrupos(agrupar(lista, g.clave, a => a.stock), {
+      titulo: g.titulo, registros: "Artículos", cantidad: "Piezas en stock",
+      extra: { titulo: "Agotados o bajo mínimo", valor: f => numero(lista.filter(a => (g.clave(a) || "(vacío)") === f.grupo && estadoDe(a) !== "OK").length) },
+    });
+  } else {
+    $("#tablaArticulos").innerHTML = `<table>
+      <thead><tr><th class="num">#</th><th>SKU</th><th>Artículo</th><th>Categoría</th><th>Ubicación</th><th>Proveedores</th><th class="num">Stock</th><th class="num">Mínimo</th></tr></thead>
+      <tbody>${lista.length ? lista.map((a, i) => {
         const clase = a.stock <= 0 ? "agotado" : a.minimo > 0 && a.stock <= a.minimo ? "bajo" : "";
         return `<tr class="clic ${clase}" data-id="${a.id}">
+          <td class="num muted">${i + 1}</td>
           <td>${esc(a.sku || "—")}</td>
           <td><b>${esc(a.nombre)}</b>${a.marca || a.modelo ? `<div class="nota">${esc([a.marca, a.modelo].filter(Boolean).join(" · "))}</div>` : ""}</td>
           <td>${esc(a.categoria || "—")}</td>
           <td>${esc(a.ubicacion || "—")}</td>
-          <td>${esc(proveedoresDe(a.id).map(p => p.nombre).join(", ") || "—")}</td>
+          <td>${esc(proveedoresTexto(a) || "—")}</td>
           <td class="num"><b>${a.stock}</b></td>
           <td class="num">${a.minimo}</td>
         </tr>`;
-      }).join("")
-    : `<tr><td colspan="7" class="empty">No hay artículos todavía.</td></tr>`;
+      }).join("") : `<tr><td colspan="8" class="empty">${estado.articulos.length ? "Nada coincide con los filtros." : "No hay artículos todavía."}</td></tr>`}</tbody>
+    </table>`;
+  }
 
   // Alerta de stock bajo
   const bajos = bajoMinimo();
@@ -30,12 +69,49 @@ export function renderInventario() {
   $("#alertaBajo").innerHTML = `<b>${bajos.length}</b> artículo(s) en o debajo del mínimo: ${bajos.map(a => esc(a.nombre)).join(", ")}`;
 }
 
+function descargarInventario() {
+  const modo = $("#iAgrupar").value;
+  const lista = filtrar();
+  try {
+    if (modo) {
+      const g = AGRUPAR[modo];
+      descargarExcel(`IT Mexico - Inventario por ${g.titulo.toLowerCase()}.xlsx`, {
+        [g.titulo]: agrupar(lista, g.clave, a => a.stock).map((f, i) => ({ "#": i + 1, [g.titulo]: f.grupo, Artículos: f.registros, "Piezas en stock": f.cantidad })),
+      });
+    } else {
+      descargarExcel("IT Mexico - Inventario filtrado.xlsx", {
+        Inventario: lista.map((a, i) => ({
+          "#": i + 1, SKU: a.sku || "", Artículo: a.nombre, Marca: a.marca || "", Modelo: a.modelo || "", Categoría: a.categoria || "",
+          Ubicación: a.ubicacion || "", Proveedores: proveedoresTexto(a), Stock: a.stock, Mínimo: a.minimo, Estado: estadoDe(a),
+        })),
+      });
+    }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 export function iniciarInventario(recargar) {
   $("#buscarArticulo").addEventListener("input", renderInventario);
+  ["#iCategoria", "#iMarca", "#iProveedor", "#iEstado", "#iAgrupar"].forEach(id => $(id).addEventListener("change", renderInventario));
+  $("#btnLimpiarInventario").addEventListener("click", () => {
+    ["#buscarArticulo", "#iCategoria", "#iMarca", "#iProveedor", "#iEstado", "#iAgrupar"].forEach(id => { $(id).value = ""; });
+    renderInventario();
+  });
+  $("#btnDescargarInventario").addEventListener("click", descargarInventario);
   $("#btnNuevoArticulo").addEventListener("click", () => abrirArticulo(null, recargar));
   $("#tablaArticulos").addEventListener("click", e => {
     const fila = e.target.closest("tr[data-id]");
-    if (fila) abrirArticulo(estado.articulos.find(a => a.id === fila.dataset.id), recargar);
+    if (fila) return abrirArticulo(estado.articulos.find(a => a.id === fila.dataset.id), recargar);
+    // Al tocar un grupo se filtra por él y se regresa a la lista
+    const grupo = e.target.closest("tr[data-grupo]");
+    if (!grupo) return;
+    const g = AGRUPAR[$("#iAgrupar").value];
+    if ($("#iAgrupar").value === "proveedor" && grupo.dataset.grupo !== "(vacío)") $("#iProveedor").value = grupo.dataset.grupo.split(", ")[0];
+    else if (g?.filtro && grupo.dataset.grupo !== "(vacío)") $(g.filtro).value = grupo.dataset.grupo;
+    else if (g) $("#buscarArticulo").value = grupo.dataset.grupo === "(vacío)" ? "" : grupo.dataset.grupo.split(",")[0];
+    $("#iAgrupar").value = "";
+    renderInventario();
   });
 }
 

@@ -11,3 +11,25 @@ export function formatoFecha(iso) {
 }
 
 export const $ = selector => document.querySelector(selector);
+
+// Supabase entrega máximo 1000 filas por consulta: se piden por partes hasta tener todo
+export async function traerTodo(consulta) {
+  const todo = [];
+  for (let desde = 0; ; desde += 1000) {
+    const { data, error } = await consulta().range(desde, desde + 999);
+    if (error) throw error;
+    todo.push(...data);
+    if (data.length < 1000) return todo;
+  }
+}
+
+// Descarga una tabla como Excel (necesita SheetJS)
+export function descargarExcel(nombreArchivo, hojas) {
+  if (!window.XLSX) throw new Error("No se cargó el lector de Excel");
+  const libro = XLSX.utils.book_new();
+  for (const [nombre, filas] of Object.entries(hojas)) {
+    const hoja = XLSX.utils.json_to_sheet(filas.length ? filas : [{ "": "Sin datos" }]);
+    XLSX.utils.book_append_sheet(libro, hoja, nombre.slice(0, 31));
+  }
+  XLSX.writeFile(libro, nombreArchivo);
+}

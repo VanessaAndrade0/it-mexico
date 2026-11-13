@@ -1,6 +1,7 @@
 import { supabase } from "./supabase.js";
 import { estado } from "./estado.js";
-import { esc, formatoFecha, $ } from "./util.js";
+import { esc, formatoFecha, $, traerTodo, descargarExcel } from "./util.js";
+import { MESES, numero, opciones, agrupar, tablaGrupos } from "./filtros.js";
 
 // Convierte una fecha de Supabase al formato que usa <input type="datetime-local">
 function aFechaLocal(iso) {
@@ -9,8 +10,23 @@ function aFechaLocal(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// ---------- Historial: todos los movimientos, con filtros y agrupación ----------
+
+let todos = [];          // todos los movimientos de la base
+let pendiente = true;    // hay que volver a cargar cuando se abra la pestaña
+let pagina = 0;
+const POR_PAGINA = 100;
+
+const visible = () => !document.querySelector('section[data-view="movimientos"]').hidden;
+const fechaLocal = iso => new Date(iso);
+const anioDe = m => String(fechaLocal(m.fecha).getFullYear());
+const mesDe = m => fechaLocal(m.fecha).getMonth() + 1;
+// "Self pick", "Self-pick" y "Self Pick" son lo mismo
+const metodoDe = m => m.metodo_envio ? m.metodo_envio.toLowerCase().replace(/[-\s]+/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "";
+const piezasDe = m => Math.abs(m.cantidad);
+
 export function renderMovimientos() {
-  // Llenar selects con los datos actuales
+  // Llenar selects del formulario con los datos actuales
   const actual = $("#movArticulo").value;
   $("#movArticulo").innerHTML = `<option value="">— Elige artículo —</option>` +
     estado.articulos.map(a => `<option value="${a.id}">${esc(a.nombre)} (stock ${a.stock})</option>`).join("");
@@ -19,8 +35,85 @@ export function renderMovimientos() {
   $("#movProveedor").innerHTML = `<option value="">— Sin proveedor —</option>` +
     estado.proveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("");
 
-  $("#tablaMovimientos").innerHTML = estado.movimientos.length
-    ? estado.movimientos.map(m => `<tr class="${m.anulado ? "anulado" : ""}">
+  // El historial completo solo se carga cuando la pestaña está abierta
+  pendiente = true;
+  if (visible()) cargarHistorial();
+}
+
+async function cargarHistorial() {
+  pendiente = false;
+  $("#contadorHistorial").textContent = "Cargando historial…";
+  try {
+    todos = await traerTodo(() => supabase.from("movimientos")
+      .select("*, articulos(nombre, categoria, marca)")
+      .order("fecha", { ascending: false }).order("id"));
+    llenarFiltros();
+    pintarHistorial();
+  } catch (error) {
+    console.error(error);
+    $("#contadorHistorial").textContent = "No se pudo cargar el historial: " + error.message;
+  }
+}
+
+function llenarFiltros() {
+  const unicos = f => [...new Set(todos.map(f).filter(Boolean))];
+  opciones($("#fAnio"), unicos(anioDe).sort().reverse());
+  opciones($("#fMes"), MESES.map((m, i) => ({ valor: i + 1, texto: m })));
+  opciones($("#fCategoria"), unicos(m => m.articulos?.categoria).sort());
+  opciones($("#fArticulo"), unicos(m => m.articulos?.nombre).sort((a, b) => a.localeCompare(b)));
+  opciones($("#fSucursal"), unicos(m => m.sucursal).sort());
+  opciones($("#fMetodo"), unicos(metodoDe).sort());
+}
+
+function filtrados() {
+  const v = id => $(id).value;
+  const texto = v("#fBuscar").trim().toLowerCase();
+  return todos.filter(m =>
+    (!v("#fAnio") || anioDe(m) === v("#fAnio")) &&
+    (!v("#fMes") || mesDe(m) === Number(v("#fMes"))) &&
+    (!v("#fTipo") || m.tipo === v("#fTipo")) &&
+    (!v("#fCategoria") || m.articulos?.categoria === v("#fCategoria")) &&
+    (!v("#fArticulo") || m.articulos?.nombre === v("#fArticulo")) &&
+    (!v("#fSucursal") || m.sucursal === v("#fSucursal")) &&
+    (!v("#fMetodo") || metodoDe(m) === v("#fMetodo")) &&
+    (!v("#fOrigen") || (v("#fOrigen") === "historial") === !!m.historico) &&
+    (!texto || [m.ticket, m.lpn, m.serie, m.solicitante, m.nota, m.orden_compra].join(" ").toLowerCase().includes(texto)));
+}
+
+// Cómo se agrupa y qué filtro se aplica al tocar un grupo
+const AGRUPAR = {
+  articulo: { titulo: "Artículo", clave: m => m.articulos?.nombre, filtro: "#fArticulo" },
+  categoria: { titulo: "Categoría", clave: m => m.articulos?.categoria, filtro: "#fCategoria" },
+  sucursal: { titulo: "Sucursal", clave: m => m.sucursal, filtro: "#fSucursal" },
+  anio: { titulo: "Año", clave: anioDe, filtro: "#fAnio", porNombre: true },
+  mes: { titulo: "Mes", clave: m => `${anioDe(m)}-${String(mesDe(m)).padStart(2, "0")} ${MESES[mesDe(m) - 1]}`, porNombre: true },
+  metodo: { titulo: "Método de envío", clave: metodoDe, filtro: "#fMetodo" },
+  tipo: { titulo: "Tipo", clave: m => m.tipo, filtro: "#fTipo" },
+  ticket: { titulo: "Ticket", clave: m => m.ticket, filtro: "#fBuscar" },
+};
+
+function pintarHistorial() {
+  const lista = filtrados();
+  const piezas = lista.reduce((s, m) => s + piezasDe(m), 0);
+  $("#contadorHistorial").innerHTML = `<b>${numero(lista.length)}</b> movimientos · <b>${numero(piezas)}</b> piezas${lista.length !== todos.length ? ` <span class="muted">(de ${numero(todos.length)} en total)</span>` : ""}`;
+
+  const modo = $("#gAgrupar").value;
+  if (modo) {
+    const g = AGRUPAR[modo];
+    $("#tablaMovimientos").innerHTML = tablaGrupos(agrupar(lista, g.clave, piezasDe, g.porNombre), { titulo: g.titulo, registros: "Movimientos", cantidad: "Piezas" });
+    $("#paginacion").hidden = true;
+    return;
+  }
+
+  const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+  pagina = Math.min(pagina, paginas - 1);
+  const desde = pagina * POR_PAGINA;
+  const parte = lista.slice(desde, desde + POR_PAGINA);
+
+  $("#tablaMovimientos").innerHTML = `<table>
+    <thead><tr><th class="num">#</th><th>Fecha</th><th>Tipo</th><th>Artículo</th><th class="num">Cant.</th><th>Ticket</th><th>Sucursal</th><th>Pidió</th><th>LPN</th><th>Registró</th><th></th></tr></thead>
+    <tbody>${parte.length ? parte.map((m, i) => `<tr class="${m.anulado ? "anulado" : ""}">
+        <td class="num muted">${numero(desde + i + 1)}</td>
         <td>${formatoFecha(m.fecha)}</td>
         <td>${m.tipo}</td>
         <td>${esc(m.articulos?.nombre || "")}${m.serie ? `<div class="nota">S/N ${esc(m.serie)}</div>` : ""}${m.nota ? `<div class="nota">${esc(m.nota)}</div>` : ""}</td>
@@ -31,11 +124,70 @@ export function renderMovimientos() {
         <td>${esc(m.lpn || "")}</td>
         <td>${m.historico ? `<span class="pill gris">Historial</span>` : esc(m.registrado_por || "")}${m.editado_por ? `<div class="nota">Editado por ${esc(m.editado_por)}</div>` : ""}</td>
         <td class="acciones">${m.anulado ? `<span class="etiqueta">Anulado</span>` : `<button class="btn small" data-editar="${m.id}">Editar</button>`}<button class="btn small danger" data-eliminar="${m.id}">Eliminar</button></td>
-      </tr>`).join("")
-    : `<tr><td colspan="10" class="empty">Sin movimientos todavía.</td></tr>`;
+      </tr>`).join("") : `<tr><td colspan="11" class="empty">${todos.length ? "Nada coincide con los filtros." : "Sin movimientos todavía."}</td></tr>`}</tbody>
+  </table>`;
+
+  $("#paginacion").hidden = paginas <= 1;
+  $("#paginaTexto").textContent = `${numero(desde + 1)}–${numero(Math.min(desde + POR_PAGINA, lista.length))} de ${numero(lista.length)} · página ${pagina + 1} de ${paginas}`;
+  $("#btnAnterior").disabled = pagina === 0;
+  $("#btnSiguiente").disabled = pagina >= paginas - 1;
+}
+
+function descargarFiltrado() {
+  const lista = filtrados();
+  const modo = $("#gAgrupar").value;
+  try {
+    if (modo) {
+      const g = AGRUPAR[modo];
+      descargarExcel(`IT Mexico - Historial por ${g.titulo.toLowerCase()}.xlsx`, {
+        [g.titulo]: agrupar(lista, g.clave, piezasDe, g.porNombre).map((f, i) => ({ "#": i + 1, [g.titulo]: f.grupo, Movimientos: f.registros, Piezas: f.cantidad })),
+      });
+    } else {
+      descargarExcel("IT Mexico - Historial filtrado.xlsx", {
+        Movimientos: lista.map((m, i) => ({
+          "#": i + 1, Fecha: formatoFecha(m.fecha), Tipo: m.tipo, Artículo: m.articulos?.nombre || "", Categoría: m.articulos?.categoria || "",
+          Cantidad: m.cantidad, Ticket: m.ticket || "", Sucursal: m.sucursal || "", "Quién pidió": m.solicitante || "", LPN: m.lpn || "",
+          "Número de serie": m.serie || "", "Método de envío": m.metodo_envio || "", "Costo de envío (USD)": m.costo_envio ?? "",
+          Registró: m.historico ? "Historial importado" : m.registrado_por || "", Nota: m.nota || "",
+        })),
+      });
+    }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+// Al tocar un grupo se filtra por él y se regresa a la lista
+function verGrupo(valor) {
+  const modo = $("#gAgrupar").value;
+  const g = AGRUPAR[modo];
+  if (modo === "mes") {
+    const [anio, mes] = valor.split(" ")[0].split("-");
+    $("#fAnio").value = anio;
+    $("#fMes").value = String(Number(mes));
+  } else if (g?.filtro && valor !== "(vacío)") {
+    $(g.filtro).value = valor;
+  }
+  $("#gAgrupar").value = "";
+  pagina = 0;
+  pintarHistorial();
 }
 
 export function iniciarMovimientos(recargar) {
+  // Filtros del historial
+  const filtros = ["#fAnio", "#fMes", "#fTipo", "#fCategoria", "#fArticulo", "#fSucursal", "#fMetodo", "#fOrigen", "#gAgrupar"];
+  filtros.forEach(id => $(id).addEventListener("change", () => { pagina = 0; pintarHistorial(); }));
+  $("#fBuscar").addEventListener("input", () => { pagina = 0; pintarHistorial(); });
+  $("#btnLimpiarFiltros").addEventListener("click", () => {
+    [...filtros, "#fBuscar"].forEach(id => { $(id).value = ""; });
+    pagina = 0;
+    pintarHistorial();
+  });
+  $("#btnAnterior").addEventListener("click", () => { pagina--; pintarHistorial(); $("#contadorHistorial").scrollIntoView({ block: "start" }); });
+  $("#btnSiguiente").addEventListener("click", () => { pagina++; pintarHistorial(); $("#contadorHistorial").scrollIntoView({ block: "start" }); });
+  $("#btnDescargarHistorial").addEventListener("click", descargarFiltrado);
+  document.querySelector('#tabs [data-tab="movimientos"]').addEventListener("click", () => { if (pendiente) cargarHistorial(); });
+
   // El proveedor solo aplica en entradas
   $("#movTipo").addEventListener("change", () => {
     $("#movProveedorWrap").hidden = $("#movTipo").value !== "entrada";
@@ -73,8 +225,10 @@ export function iniciarMovimientos(recargar) {
   $("#tablaMovimientos").addEventListener("click", e => {
     const editar = e.target.closest("[data-editar]");
     const eliminar = e.target.closest("[data-eliminar]");
-    if (editar) abrirEditar(estado.movimientos.find(m => m.id === editar.dataset.editar), recargar);
-    if (eliminar) abrirEliminar(estado.movimientos.find(m => m.id === eliminar.dataset.eliminar), recargar);
+    const grupo = e.target.closest("tr[data-grupo]");
+    if (editar) abrirEditar(todos.find(m => m.id === editar.dataset.editar), recargar);
+    if (eliminar) abrirEliminar(todos.find(m => m.id === eliminar.dataset.eliminar), recargar);
+    if (grupo) verGrupo(grupo.dataset.grupo);
   });
 }
 

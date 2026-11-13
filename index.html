@@ -47,13 +47,38 @@
         </div>
         <div id="alertaBajo" class="alert" hidden></div>
         <div id="alertaTrucksInicio" class="alert" hidden></div>
-        <input id="buscarArticulo" placeholder="Buscar por nombre, SKU o ubicación">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>SKU</th><th>Artículo</th><th>Categoría</th><th>Ubicación</th><th>Proveedores</th><th class="num">Stock</th><th class="num">Mínimo</th></tr></thead>
-            <tbody id="tablaArticulos"></tbody>
-          </table>
+        <div class="card panel-filtros">
+          <div class="filtros-grid">
+            <label class="span2">Buscar <input id="buscarArticulo" placeholder="Nombre, SKU, marca, modelo o ubicación"></label>
+            <label>Categoría <select id="iCategoria"></select></label>
+            <label>Marca <select id="iMarca"></select></label>
+            <label>Proveedor <select id="iProveedor"></select></label>
+            <label>Estado
+              <select id="iEstado">
+                <option value="">Todos</option>
+                <option>OK</option>
+                <option>Bajo mínimo</option>
+                <option>Agotado</option>
+              </select>
+            </label>
+            <label class="agrupar">Agrupar por
+              <select id="iAgrupar">
+                <option value="">No agrupar (lista)</option>
+                <option value="categoria">Categoría</option>
+                <option value="marca">Marca</option>
+                <option value="proveedor">Proveedor</option>
+                <option value="ubicacion">Ubicación</option>
+                <option value="estado">Estado</option>
+              </select>
+            </label>
+          </div>
+          <div class="row barra-filtros">
+            <span id="contadorInventario" class="contador"></span>
+            <button class="btn small" id="btnLimpiarInventario">Quitar filtros</button>
+            <button class="btn small" id="btnDescargarInventario">Descargar lo que se ve</button>
+          </div>
         </div>
+        <div class="table-wrap" id="tablaArticulos"></div>
       </section>
 
       <!-- MOVIMIENTOS -->
@@ -79,11 +104,55 @@
         </form>
 
         <h2>Historial</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Artículo</th><th class="num">Cant.</th><th>Ticket</th><th>Sucursal</th><th>Pidió</th><th>LPN</th><th>Registró</th><th></th></tr></thead>
-            <tbody id="tablaMovimientos"></tbody>
-          </table>
+        <div class="card panel-filtros">
+          <div class="filtros-grid">
+            <label>Año <select id="fAnio"></select></label>
+            <label>Mes <select id="fMes"></select></label>
+            <label>Tipo
+              <select id="fTipo">
+                <option value="">Todos</option>
+                <option value="salida">Salidas</option>
+                <option value="entrada">Entradas</option>
+                <option value="ajuste">Ajustes</option>
+              </select>
+            </label>
+            <label>Categoría <select id="fCategoria"></select></label>
+            <label class="span2">Artículo <select id="fArticulo"></select></label>
+            <label>Sucursal <select id="fSucursal"></select></label>
+            <label>Método de envío <select id="fMetodo"></select></label>
+            <label>Origen
+              <select id="fOrigen">
+                <option value="">Todos</option>
+                <option value="app">Registrados en la app</option>
+                <option value="historial">Historial importado</option>
+              </select>
+            </label>
+            <label class="span2">Buscar <input id="fBuscar" placeholder="Ticket, LPN, número de serie, quién pidió…"></label>
+            <label class="agrupar">Agrupar por
+              <select id="gAgrupar">
+                <option value="">No agrupar (lista)</option>
+                <option value="articulo">Artículo</option>
+                <option value="categoria">Categoría</option>
+                <option value="sucursal">Sucursal</option>
+                <option value="anio">Año</option>
+                <option value="mes">Mes</option>
+                <option value="metodo">Método de envío</option>
+                <option value="tipo">Tipo</option>
+                <option value="ticket">Ticket</option>
+              </select>
+            </label>
+          </div>
+          <div class="row barra-filtros">
+            <span id="contadorHistorial" class="contador"></span>
+            <button class="btn small" id="btnLimpiarFiltros">Quitar filtros</button>
+            <button class="btn small" id="btnDescargarHistorial">Descargar lo que se ve</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tablaMovimientos"></div>
+        <div class="row paginacion" id="paginacion" hidden>
+          <button class="btn small" id="btnAnterior">← Anterior</button>
+          <span id="paginaTexto" class="muted"></span>
+          <button class="btn small" id="btnSiguiente">Siguiente →</button>
         </div>
       </section>
 
@@ -163,6 +232,17 @@
             <div class="row"><button class="btn primary" id="btnHistImportar">Importar historial</button></div>
           </div>
           <p class="muted" id="histMensaje"></p>
+        </div>
+
+        <h2>Archivos importados</h2>
+        <div class="card pasos-excel">
+          <p class="muted">Cada año se importa su archivo maestro (2023–2024, 2025, 2026…). Aquí ves qué años ya están cargados. Si un archivo se importó mal, quítalo y vuelve a importarlo.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Archivo</th><th>Periodo</th><th class="num">Envíos</th><th>Importado por</th><th></th></tr></thead>
+              <tbody id="tablaImportaciones"></tbody>
+            </table>
+          </div>
         </div>
 
         <h2>Reporte del mes</h2>

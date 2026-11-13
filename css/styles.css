@@ -156,3 +156,20 @@ dialog form { display: grid; gap: 12px; }
 .lista-hojas { display: grid; gap: 6px; }
 .lista-hojas .check { align-items: flex-start; }
 .lista-simple .tarde { color: var(--danger); }
+
+/* Filtros tipo tabla dinámica */
+.panel-filtros { display: grid; gap: 12px; margin: 10px 0; }
+.filtros-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.filtros-grid .span2 { grid-column: span 2; }
+.filtros-grid .agrupar select { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.barra-filtros { justify-content: flex-end; }
+.contador { margin-right: auto; }
+.paginacion { justify-content: center; margin-top: 10px; }
+tr.grupo td { vertical-align: middle; }
+.col-barra { width: 22%; min-width: 120px; }
+.barra { display: block; height: 10px; border-radius: 5px; background: var(--accent); opacity: .55; }
+tfoot td { border-top: 2px solid var(--line); background: var(--surface-2); }
+@media (max-width: 560px) {
+  .filtros-grid { grid-template-columns: 1fr 1fr; }
+  .col-barra { display: none; }
+}

@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { estado, proveedoresDe } from "./estado.js";
-import { esc, $ } from "./util.js";
+import { esc, $, traerTodo, formatoFecha } from "./util.js";
 
 // XLSX viene de la librería SheetJS que se carga en index.html
 
@@ -217,7 +217,7 @@ const COLS_HIST = {
   lpn: /lpn|track/i,
 };
 
-const hist = { hojas: [], plan: null };
+const hist = { hojas: [], plan: null, archivo: "" };
 
 // Limpia celdas: espacios raros, guiones y "N/A" cuentan como vacío
 const celda = v => {
@@ -363,8 +363,9 @@ function armarPlanHistorial() {
 
 const fechaCorta = f => f ? f.split("-").reverse().join("/") : "—";
 
-function mostrarHistorial(hojas) {
+function mostrarHistorial(hojas, archivo) {
   hist.hojas = hojas;
+  hist.archivo = archivo;
   $("#histHojas").innerHTML = hojas.map((h, i) => `<label class="check"><input type="checkbox" id="hist-${i}" checked>
     <span><b>${esc(h.nombre)}</b> · ${h.categoria} · ${h.envios.toLocaleString("es-MX")} envíos${h.fechaMax ? ` hasta ${fechaCorta(h.fechaMax)}` : ""} · ${h.existencia} en existencia</span></label>`).join("");
   $("#histPaso2").hidden = false;
@@ -427,9 +428,16 @@ async function importarHistorial(recargar) {
       await enLotes(relaciones, 500, lote => supabase.from("articulo_proveedor").upsert(lote, { onConflict: "articulo_id,proveedor_id", ignoreDuplicates: true }));
     }
 
-    // 5. Envíos como historial (los que ya estaban se saltan)
+    // 5. Registro del archivo, para saber qué años ya están cargados
+    const reg = await supabase.from("importaciones")
+      .insert({ archivo: hist.archivo || "Archivo maestro", fecha_inicio: plan.fechaMin || null, fecha_fin: plan.fechaMax || null, envios: 0 })
+      .select("id").single();
+    if (reg.error) throw reg.error;
+    const importacionId = reg.data.id;
+
+    // 6. Envíos como historial (los que ya estaban se saltan)
     let agregados = 0, hechos = 0;
-    const filas = plan.movimientos.map(({ articuloClave, ...m }) => ({ ...m, articulo_id: ids.get(articuloClave) })).filter(m => m.articulo_id);
+    const filas = plan.movimientos.map(({ articuloClave, ...m }) => ({ ...m, articulo_id: ids.get(articuloClave), importacion_id: importacionId })).filter(m => m.articulo_id);
     await enLotes(filas, 500, async lote => {
       const res = await supabase.from("movimientos").upsert(lote, { onConflict: "clave_importacion", ignoreDuplicates: true }).select("id");
       agregados += res.data?.length || 0;
@@ -439,6 +447,9 @@ async function importarHistorial(recargar) {
     });
 
     const repetidos = filas.length - agregados;
+    if (agregados) await supabase.from("importaciones").update({ envios: agregados }).eq("id", importacionId);
+    else await supabase.from("importaciones").delete().eq("id", importacionId); // no trajo nada nuevo
+    await renderImportaciones();
     msg(`Listo: ${agregados.toLocaleString("es-MX")} envíos agregados al historial${repetidos ? ` (${repetidos.toLocaleString("es-MX")} ya estaban)` : ""}, ${nuevos.length} artículos nuevos${faltan.length ? `, ${faltan.length} proveedores nuevos` : ""}${usarStock ? " y stock actualizado" : ""}.`);
     await recargar();
     armarPlanHistorial();
@@ -450,20 +461,51 @@ async function importarHistorial(recargar) {
   }
 }
 
+// ===================== ARCHIVOS IMPORTADOS =====================
+
+const fechaLarga = f => f ? fechaCorta(f) : "—";
+
+async function renderImportaciones() {
+  const { data, error } = await supabase.from("importaciones").select("*").order("fecha_inicio", { ascending: false });
+  if (error) { $("#tablaImportaciones").innerHTML = `<tr><td colspan="5" class="empty">No se pudo cargar la lista.</td></tr>`; return; }
+  $("#tablaImportaciones").innerHTML = data.length
+    ? data.map(i => {
+        const anios = [...new Set([i.fecha_inicio, i.fecha_fin].filter(Boolean).map(f => f.slice(0, 4)))].join("–");
+        return `<tr>
+          <td><b>${esc(i.archivo)}</b></td>
+          <td><span class="pill gris">${anios || "—"}</span> <span class="nota">${fechaLarga(i.fecha_inicio)} al ${fechaLarga(i.fecha_fin)}</span></td>
+          <td class="num">${(i.envios || 0).toLocaleString("es-MX")}</td>
+          <td>${esc(i.importado_por || "")}<div class="nota">${formatoFecha(i.importado_en)}</div></td>
+          <td class="acciones"><button class="btn small danger" data-quitar-imp="${i.id}" data-nombre="${esc(i.archivo)}" data-envios="${i.envios}">Quitar</button></td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="5" class="empty">Todavía no se importa ningún archivo maestro.</td></tr>`;
+}
+
+function abrirQuitarImportacion(boton, recargar) {
+  const modal = $("#modal");
+  modal.innerHTML = `<form method="dialog" id="formQuitarImp">
+    <h2>Quitar ${esc(boton.dataset.nombre)}</h2>
+    <p class="muted">Se borran del historial los ${Number(boton.dataset.envios).toLocaleString("es-MX")} envíos que vinieron de este archivo. El stock no cambia y los artículos se quedan. Después lo puedes volver a importar.</p>
+    <p class="error" id="errQuitarImp"></p>
+    <div class="row"><button class="btn danger" value="quitar">Quitar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button></div>
+  </form>`;
+  modal.showModal();
+  $("#formQuitarImp").addEventListener("submit", async e => {
+    if (e.submitter?.value !== "quitar") return;
+    e.preventDefault();
+    const { error } = await supabase.from("importaciones").delete().eq("id", boton.dataset.quitarImp);
+    if (error) { $("#errQuitarImp").textContent = "No se pudo quitar: " + error.message; return; }
+    modal.close();
+    await renderImportaciones();
+    recargar();
+  });
+}
+
 // ===================== EXPORTAR =====================
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
-// Supabase entrega máximo 1000 filas por consulta: se piden por partes
-async function traerTodo(consulta) {
-  const todo = [];
-  for (let desde = 0; ; desde += 1000) {
-    const { data, error } = await consulta().range(desde, desde + 999);
-    if (error) throw error;
-    todo.push(...data);
-    if (data.length < 1000) return todo;
-  }
-}
 
 // Las fechas se escriben como número de serie de Excel con formato, para que no cambien de día por la zona horaria
 const BASE_EXCEL = Date.UTC(1899, 11, 30);
@@ -625,7 +667,7 @@ export function iniciarExcel(recargar) {
       if (hojasHist.length) {
         $("#impPaso2").hidden = true;
         $("#impMensaje").textContent = "Este archivo es el registro de envíos (una fila por pieza). Lo abrí en “Importar historial de envíos”, aquí abajo.";
-        mostrarHistorial(hojasHist);
+        mostrarHistorial(hojasHist, archivo.name);
         $("#histArchivo").closest(".card").scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
@@ -662,7 +704,7 @@ export function iniciarExcel(recargar) {
         $("#histMensaje").textContent = "No encontré hojas con las columnas Description y Shipped out. Si es un inventario normal, usa “Importar inventario”.";
         return;
       }
-      mostrarHistorial(hojas);
+      mostrarHistorial(hojas, archivo.name);
     } catch (error) {
       console.error(error);
       $("#histMensaje").textContent = "No se pudo abrir el archivo. Revisa que sea .xlsx o .xls.";
@@ -670,4 +712,9 @@ export function iniciarExcel(recargar) {
   });
   $("#histHojas").addEventListener("change", armarPlanHistorial);
   $("#btnHistImportar").addEventListener("click", () => importarHistorial(recargar));
+  $("#tablaImportaciones").addEventListener("click", e => {
+    const b = e.target.closest("[data-quitar-imp]");
+    if (b) abrirQuitarImportacion(b, recargar);
+  });
+  renderImportaciones();
 }
