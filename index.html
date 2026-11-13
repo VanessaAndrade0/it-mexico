@@ -33,6 +33,7 @@
         <button data-tab="inventario" class="active">Inventario <span class="badge" id="lowBadge" hidden></span></button>
         <button data-tab="movimientos">Movimientos</button>
         <button data-tab="trucks">Trucks <span class="badge info" id="trucksBadge" hidden></span></button>
+        <button data-tab="sucursales">Sucursales</button>
         <button data-tab="proveedores">Proveedores</button>
         <button data-tab="excel">Excel</button>
       </nav>
@@ -95,7 +96,7 @@
           <label class="span2">Artículo <select id="movArticulo" required></select></label>
           <label>Cantidad <input id="movCantidad" type="number" value="1" required></label>
           <label>Ticket (REQ) <input id="movTicket"></label>
-          <label>Sucursal <input id="movSucursal" maxlength="5"></label>
+          <label>Sucursal <input id="movSucursal" maxlength="5" list="listaSucursales" class="mayus" placeholder="Código de 5 o de 4"><small id="movSucursalInfo" class="nota"></small></label>
           <label>Quién lo pidió <input id="movSolicitante"></label>
           <label>LPN <input id="movLpn"></label>
           <label id="movProveedorWrap" hidden>Proveedor <select id="movProveedor"></select></label>
@@ -144,6 +145,7 @@
           </div>
           <div class="row barra-filtros">
             <span id="contadorHistorial" class="contador"></span>
+            <label class="check"><input type="checkbox" id="fJuntar" checked> Juntar piezas iguales</label>
             <button class="btn small" id="btnLimpiarFiltros">Quitar filtros</button>
             <button class="btn small" id="btnDescargarHistorial">Descargar lo que se ve</button>
           </div>
@@ -189,6 +191,34 @@
             <tbody id="tablaEntregas"></tbody>
           </table>
         </div>
+      </section>
+
+      <!-- SUCURSALES -->
+      <section data-view="sucursales" hidden>
+        <div class="section-head">
+          <h2>Sucursales</h2>
+          <button class="btn primary" id="btnNuevaSucursal">+ Nueva sucursal</button>
+        </div>
+        <p class="muted">Cada sucursal tiene dos códigos: el de 5 caracteres con el que se identifica (NL023) y el de 4 con el que se hace el LPN. En los reportes se suman los movimientos de los dos.</p>
+        <div id="avisoSucursales" class="alert" hidden></div>
+        <div class="card panel-filtros">
+          <div class="filtros-grid">
+            <label class="span2">Buscar <input id="buscarSucursal" placeholder="Código, código LPN, nombre o ciudad"></label>
+            <label>Mostrar
+              <select id="filtroSucursal">
+                <option value="">Todas</option>
+                <option value="activas">Activas</option>
+                <option value="inactivas">Inactivas</option>
+                <option value="sinlpn">Sin código LPN</option>
+              </select>
+            </label>
+          </div>
+          <div class="row barra-filtros">
+            <span id="contadorSucursales" class="contador"></span>
+            <button class="btn small" id="btnDescargarSucursales">Descargar Excel</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tablaSucursales"></div>
       </section>
 
       <!-- PROVEEDORES -->
@@ -257,6 +287,8 @@
       </section>
     </main>
   </div>
+
+  <datalist id="listaSucursales"></datalist>
 
   <!-- Ventana para formularios -->
   <dialog id="modal"></dialog>

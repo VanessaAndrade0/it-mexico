@@ -24,6 +24,25 @@ const mesDe = m => fechaLocal(m.fecha).getMonth() + 1;
 // "Self pick", "Self-pick" y "Self Pick" son lo mismo
 const metodoDe = m => m.metodo_envio ? m.metodo_envio.toLowerCase().replace(/[-\s]+/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "";
 const piezasDe = m => Math.abs(m.cantidad);
+const diaDe = m => { const d = fechaLocal(m.fecha); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+// El historial importado solo trae el día, no la hora
+const fechaMov = m => m.historico
+  ? fechaLocal(m.fecha).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })
+  : formatoFecha(m.fecha);
+
+let porId = new Map(); // renglones que se ven, para Editar y Eliminar
+
+// Junta en un renglón las piezas iguales: mismo día, artículo, ticket, sucursal y LPN, sin número de serie
+function juntar(lista) {
+  const grupos = new Map();
+  for (const m of lista) {
+    const k = m.serie ? m.id : [diaDe(m), m.tipo, m.articulo_id, m.ticket, m.sucursal, m.lpn, m.metodo_envio, m.solicitante, m.nota, m.historico, m.anulado].join("|");
+    const g = grupos.get(k);
+    if (g) { g.cantidad += m.cantidad; g.ids.push(m.id); }
+    else grupos.set(k, { ...m, ids: [m.id] });
+  }
+  return [...grupos.values()];
+}
 
 export function renderMovimientos() {
   // Llenar selects del formulario con los datos actuales
@@ -95,7 +114,9 @@ const AGRUPAR = {
 function pintarHistorial() {
   const lista = filtrados();
   const piezas = lista.reduce((s, m) => s + piezasDe(m), 0);
-  $("#contadorHistorial").innerHTML = `<b>${numero(lista.length)}</b> movimientos · <b>${numero(piezas)}</b> piezas${lista.length !== todos.length ? ` <span class="muted">(de ${numero(todos.length)} en total)</span>` : ""}`;
+  const filas = $("#fJuntar").checked ? juntar(lista) : lista.map(m => ({ ...m, ids: [m.id] }));
+  porId = new Map(filas.map(f => [f.id, f]));
+  $("#contadorHistorial").innerHTML = `<b>${numero(piezas)}</b> piezas en <b>${numero(filas.length)}</b> renglones${lista.length !== todos.length ? ` <span class="muted">(filtrado de ${numero(todos.length)} movimientos)</span>` : ""}`;
 
   const modo = $("#gAgrupar").value;
   if (modo) {
@@ -105,19 +126,19 @@ function pintarHistorial() {
     return;
   }
 
-  const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+  const paginas = Math.max(1, Math.ceil(filas.length / POR_PAGINA));
   pagina = Math.min(pagina, paginas - 1);
   const desde = pagina * POR_PAGINA;
-  const parte = lista.slice(desde, desde + POR_PAGINA);
+  const parte = filas.slice(desde, desde + POR_PAGINA);
 
   $("#tablaMovimientos").innerHTML = `<table>
     <thead><tr><th class="num">#</th><th>Fecha</th><th>Tipo</th><th>Artículo</th><th class="num">Cant.</th><th>Ticket</th><th>Sucursal</th><th>Pidió</th><th>LPN</th><th>Registró</th><th></th></tr></thead>
     <tbody>${parte.length ? parte.map((m, i) => `<tr class="${m.anulado ? "anulado" : ""}">
         <td class="num muted">${numero(desde + i + 1)}</td>
-        <td>${formatoFecha(m.fecha)}</td>
+        <td>${fechaMov(m)}</td>
         <td>${m.tipo}</td>
         <td>${esc(m.articulos?.nombre || "")}${m.serie ? `<div class="nota">S/N ${esc(m.serie)}</div>` : ""}${m.nota ? `<div class="nota">${esc(m.nota)}</div>` : ""}</td>
-        <td class="num">${m.tipo === "salida" ? "−" : ""}${m.cantidad}</td>
+        <td class="num">${m.tipo === "salida" ? "−" : ""}${m.cantidad}${m.ids.length > 1 ? `<div class="nota">${m.ids.length} piezas</div>` : ""}</td>
         <td>${esc(m.ticket || "")}</td>
         <td>${esc(m.sucursal || "")}</td>
         <td>${esc(m.solicitante || "")}</td>
@@ -128,7 +149,7 @@ function pintarHistorial() {
   </table>`;
 
   $("#paginacion").hidden = paginas <= 1;
-  $("#paginaTexto").textContent = `${numero(desde + 1)}–${numero(Math.min(desde + POR_PAGINA, lista.length))} de ${numero(lista.length)} · página ${pagina + 1} de ${paginas}`;
+  $("#paginaTexto").textContent = `${numero(desde + 1)}–${numero(Math.min(desde + POR_PAGINA, filas.length))} de ${numero(filas.length)} · página ${pagina + 1} de ${paginas}`;
   $("#btnAnterior").disabled = pagina === 0;
   $("#btnSiguiente").disabled = pagina >= paginas - 1;
 }
@@ -144,8 +165,8 @@ function descargarFiltrado() {
       });
     } else {
       descargarExcel("IT Mexico - Historial filtrado.xlsx", {
-        Movimientos: lista.map((m, i) => ({
-          "#": i + 1, Fecha: formatoFecha(m.fecha), Tipo: m.tipo, Artículo: m.articulos?.nombre || "", Categoría: m.articulos?.categoria || "",
+        Movimientos: [...porId.values()].map((m, i) => ({
+          "#": i + 1, Fecha: fechaMov(m), Tipo: m.tipo, Artículo: m.articulos?.nombre || "", Categoría: m.articulos?.categoria || "",
           Cantidad: m.cantidad, Ticket: m.ticket || "", Sucursal: m.sucursal || "", "Quién pidió": m.solicitante || "", LPN: m.lpn || "",
           "Número de serie": m.serie || "", "Método de envío": m.metodo_envio || "", "Costo de envío (USD)": m.costo_envio ?? "",
           Registró: m.historico ? "Historial importado" : m.registrado_por || "", Nota: m.nota || "",
@@ -176,6 +197,7 @@ function verGrupo(valor) {
 export function iniciarMovimientos(recargar) {
   // Filtros del historial
   const filtros = ["#fAnio", "#fMes", "#fTipo", "#fCategoria", "#fArticulo", "#fSucursal", "#fMetodo", "#fOrigen", "#gAgrupar"];
+  $("#fJuntar").addEventListener("change", () => { pagina = 0; pintarHistorial(); });
   filtros.forEach(id => $(id).addEventListener("change", () => { pagina = 0; pintarHistorial(); }));
   $("#fBuscar").addEventListener("input", () => { pagina = 0; pintarHistorial(); });
   $("#btnLimpiarFiltros").addEventListener("click", () => {
@@ -226,8 +248,8 @@ export function iniciarMovimientos(recargar) {
     const editar = e.target.closest("[data-editar]");
     const eliminar = e.target.closest("[data-eliminar]");
     const grupo = e.target.closest("tr[data-grupo]");
-    if (editar) abrirEditar(todos.find(m => m.id === editar.dataset.editar), recargar);
-    if (eliminar) abrirEliminar(todos.find(m => m.id === eliminar.dataset.eliminar), recargar);
+    if (editar) abrirEditar(porId.get(editar.dataset.editar), recargar);
+    if (eliminar) abrirEliminar(porId.get(eliminar.dataset.eliminar), recargar);
     if (grupo) verGrupo(grupo.dataset.grupo);
   });
 }
@@ -237,10 +259,10 @@ function abrirEditar(m, recargar) {
   const modal = $("#modal");
   modal.innerHTML = `<form method="dialog" id="formEditarMov">
     <h2>Editar movimiento</h2>
-    <p class="muted">${m.tipo} de ${m.cantidad} · ${esc(m.articulos?.nombre || "")}. El artículo y la cantidad no se editan: si están mal, elimina este movimiento y registra uno nuevo.</p>
+    <p class="muted">${m.tipo} de ${m.cantidad} · ${esc(m.articulos?.nombre || "")}.${m.ids?.length > 1 ? ` <b>Los cambios se aplican a las ${m.ids.length} piezas de este renglón.</b>` : ""} El artículo y la cantidad no se editan: si están mal, elimina este movimiento y registra uno nuevo.</p>
     <label>Fecha <input name="fecha" type="datetime-local" required value="${aFechaLocal(m.fecha)}"></label>
     <label>Ticket (REQ) <input name="ticket" value="${esc(m.ticket || "")}"></label>
-    <label>Sucursal <input name="sucursal" maxlength="5" value="${esc(m.sucursal || "")}"></label>
+    <label>Sucursal <input name="sucursal" maxlength="6" value="${esc(m.sucursal || "")}"></label>
     <label>Quién lo pidió <input name="solicitante" value="${esc(m.solicitante || "")}"></label>
     <label>LPN <input name="lpn" value="${esc(m.lpn || "")}"></label>
     <label>Nota <input name="nota" value="${esc(m.nota || "")}"></label>
@@ -261,7 +283,7 @@ function abrirEditar(m, recargar) {
       lpn: f.get("lpn").trim() || null,
       nota: f.get("nota").trim() || null,
     };
-    const { error } = await supabase.from("movimientos").update(cambios).eq("id", m.id);
+    const { error } = await supabase.from("movimientos").update(cambios).in("id", m.ids || [m.id]);
     if (error) { $("#errEditarMov").textContent = "No se pudo guardar: " + error.message; return; }
     modal.close();
     recargar();
@@ -275,7 +297,7 @@ function abrirEliminar(m, recargar) {
   const signo = cambio > 0 ? "+" : "−";
   modal.innerHTML = `<form method="dialog" id="formEliminarMov">
     <h2>Eliminar movimiento</h2>
-    <p><b>${m.tipo} de ${m.cantidad}</b> · ${esc(m.articulos?.nombre || "")} · ${formatoFecha(m.fecha)}</p>
+    <p><b>${m.tipo} de ${m.cantidad}</b> · ${esc(m.articulos?.nombre || "")} · ${fechaMov(m)}${m.ids?.length > 1 ? ` · <b>se eliminan las ${m.ids.length} piezas de este renglón</b>` : ""}</p>
     <p class="muted">${m.historico
       ? "Es un registro del historial importado, así que el stock no cambia."
       : m.anulado
@@ -289,7 +311,7 @@ function abrirEliminar(m, recargar) {
   $("#formEliminarMov").addEventListener("submit", async e => {
     if (e.submitter?.value !== "eliminar") return;
     e.preventDefault();
-    const { error } = await supabase.from("movimientos").delete().eq("id", m.id);
+    const { error } = await supabase.from("movimientos").delete().in("id", m.ids || [m.id]);
     if (error) { $("#errEliminarMov").textContent = "No se pudo eliminar: " + error.message; return; }
     modal.close();
     recargar();
