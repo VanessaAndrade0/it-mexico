@@ -14,6 +14,7 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 - Órdenes de compra con fecha de orden y llegada estimada: avisos de trucks atrasados o por llegar y tiempo de entrega promedio por proveedor.
 - Eliminar artículos sin movimientos y proveedores.
 - Importar el inventario desde Excel (eligiendo qué columna es cada dato) y descargar un reporte mensual en Excel para las juntas.
+- Importar el historial de envíos del archivo maestro (una fila por pieza, con número de serie) sin mover el stock actual.
 - Proveedores con contacto, correo y teléfono. Un artículo puede tener varios proveedores.
 
 ## Tecnologías
@@ -25,7 +26,7 @@ Aplicación web para llevar el inventario del área de soporte TI: artículos, e
 ## Cómo ponerla en marcha
 
 1. Crea un proyecto en Supabase.
-2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`, después `sql/02_anular_y_editar.sql`, `sql/03_eliminar_y_trucks.sql` y al final `sql/04_ordenes_y_entregas.sql`.
+2. En **SQL Editor** pega y ejecuta todo `sql/schema.sql`, después `sql/02_anular_y_editar.sql`, `sql/03_eliminar_y_trucks.sql`, `sql/04_ordenes_y_entregas.sql`, `sql/05_historial_envios.sql` y al final `sql/06_datos_del_maestro.sql`.
 3. En **Authentication > Sign In / Providers** desactiva "Allow new users to sign up", para que nadie más pueda crear cuenta.
 4. En **Authentication > Users > Add user** crea una cuenta para cada persona que la va a usar.
 5. En **Project Settings > API** copia la URL y la *anon key* y pégalas en `js/config.js`.
@@ -55,6 +56,8 @@ sql/schema.sql      Tablas, reglas de seguridad y cálculo de stock
 sql/02_anular_y_editar.sql   Editar y anular movimientos
 sql/03_eliminar_y_trucks.sql Eliminar movimientos y tablas de trucks
 sql/04_ordenes_y_entregas.sql Órdenes de compra y fechas de entrega
+sql/05_historial_envios.sql   Historial de envíos importado y números de serie
+sql/06_datos_del_maestro.sql  Marca, modelo, costos y orden de compra
 sql/limpiar_pruebas.sql      Borra todos los registros para empezar de cero
 ```
 

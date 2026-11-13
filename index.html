@@ -150,6 +150,21 @@
           <p class="muted" id="impMensaje"></p>
         </div>
 
+        <h2>Importar historial de envíos</h2>
+        <div class="card pasos-excel">
+          <p class="muted">Para el archivo maestro (Inventory Master File): una fila por pieza con Description, Serial number, Shipped out, BOL, Branch y LPN. Los envíos se guardan como historial con su número de serie y no cambian el stock de hoy. Si importas el mismo archivo otra vez, no se duplican.</p>
+          <label>Archivo (.xlsx o .xls) <input type="file" id="histArchivo" accept=".xlsx,.xls"></label>
+          <div id="histPaso2" hidden>
+            <h3>Hojas encontradas</h3>
+            <div id="histHojas" class="lista-hojas"></div>
+            <h3>Resumen</h3>
+            <div id="histResumen"></div>
+            <label class="check"><input type="checkbox" id="histStock"> Usar las piezas en existencia del archivo como stock actual (solo si el archivo está al día)</label>
+            <div class="row"><button class="btn primary" id="btnHistImportar">Importar historial</button></div>
+          </div>
+          <p class="muted" id="histMensaje"></p>
+        </div>
+
         <h2>Reporte del mes</h2>
         <div class="card pasos-excel">
           <p class="muted">Descarga un Excel para la junta mensual con: resumen, inventario de hoy, salidas, entradas, consumo por artículo y por sucursal, trucks y tiempos de entrega por proveedor.</p>

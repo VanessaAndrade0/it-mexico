@@ -1,59 +1,26 @@
--- IT Mexico - Inventario
--- Ejecuta este archivo completo en Supabase > SQL Editor > New query
+-- IT Mexico - Historial de envíos (años pasados)
+-- Ejecuta este archivo completo en Supabase > SQL Editor > New query (solo una vez)
 
--- Proveedores
-create table if not exists proveedores (
-  id uuid primary key default gen_random_uuid(),
-  nombre text not null unique,
-  contacto text,
-  correo text,
-  telefono text,
-  notas text,
-  creado_en timestamptz not null default now()
-);
+-- Datos extra en cada movimiento
+alter table movimientos
+  add column if not exists historico boolean not null default false, -- importado de años pasados: no mueve el stock
+  add column if not exists serie text,                               -- número de serie de la pieza
+  add column if not exists metodo_envio text,                        -- Blue Global, UPS, Self pick...
+  add column if not exists clave_importacion text;                   -- evita duplicados si se importa dos veces
 
--- Artículos del inventario
-create table if not exists articulos (
-  id uuid primary key default gen_random_uuid(),
-  sku text,
-  nombre text not null unique,
-  categoria text,
-  ubicacion text,
-  unidad text not null default 'pzas',
-  minimo integer not null default 0 check (minimo >= 0),
-  stock integer not null default 0,
-  creado_en timestamptz not null default now()
-);
+alter table movimientos drop constraint if exists movimientos_clave_importacion_key;
+alter table movimientos add constraint movimientos_clave_importacion_key unique (clave_importacion);
 
--- Un artículo puede tener varios proveedores y un proveedor varios artículos
-create table if not exists articulo_proveedor (
-  articulo_id uuid not null references articulos(id) on delete cascade,
-  proveedor_id uuid not null references proveedores(id) on delete cascade,
-  primary key (articulo_id, proveedor_id)
-);
+create index if not exists movimientos_serie_idx on movimientos (serie);
+create index if not exists movimientos_fecha_idx on movimientos (fecha);
 
--- Entradas, salidas y ajustes
-create table if not exists movimientos (
-  id uuid primary key default gen_random_uuid(),
-  tipo text not null check (tipo in ('entrada', 'salida', 'ajuste')),
-  articulo_id uuid not null references articulos(id) on delete restrict,
-  cantidad integer not null check (cantidad <> 0),
-  fecha timestamptz not null default now(),
-  ticket text,
-  sucursal text,
-  solicitante text,
-  lpn text,
-  proveedor_id uuid references proveedores(id) on delete set null,
-  nota text,
-  registrado_por text default (auth.jwt() ->> 'email'),
-  registrado_en timestamptz not null default now(),
-  constraint cantidad_positiva check (tipo = 'ajuste' or cantidad > 0)
-);
-
--- El stock se actualiza solo cada vez que se registra un movimiento
+-- Los movimientos históricos no cambian el stock al registrarse...
 create or replace function actualizar_stock() returns trigger
 language plpgsql as $$
 begin
+  if new.historico then
+    return new;
+  end if;
   update articulos
      set stock = stock + case new.tipo when 'salida' then -new.cantidad else new.cantidad end
    where id = new.articulo_id;
@@ -61,26 +28,40 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_actualizar_stock on movimientos;
-create trigger trg_actualizar_stock
-after insert on movimientos
-for each row execute function actualizar_stock();
+-- ...ni al anularse...
+create or replace function revisar_cambio_movimiento() returns trigger
+language plpgsql as $$
+begin
+  if old.anulado then
+    raise exception 'Este movimiento ya está anulado y no se puede cambiar.';
+  end if;
 
--- Seguridad: solo usuarios con sesión iniciada pueden ver y registrar
-alter table proveedores enable row level security;
-alter table articulos enable row level security;
-alter table articulo_proveedor enable row level security;
-alter table movimientos enable row level security;
+  if new.anulado then
+    new.anulado_por := auth.jwt() ->> 'email';
+    new.anulado_en := now();
+    if not old.historico then
+      update articulos
+         set stock = stock - case old.tipo when 'salida' then -old.cantidad else old.cantidad end
+       where id = old.articulo_id;
+    end if;
+  else
+    new.editado_por := auth.jwt() ->> 'email';
+    new.editado_en := now();
+  end if;
 
-create policy "usuarios leen proveedores" on proveedores for select to authenticated using (true);
-create policy "usuarios editan proveedores" on proveedores for all to authenticated using (true) with check (true);
+  return new;
+end;
+$$;
 
-create policy "usuarios leen articulos" on articulos for select to authenticated using (true);
-create policy "usuarios editan articulos" on articulos for all to authenticated using (true) with check (true);
-
-create policy "usuarios leen relacion" on articulo_proveedor for select to authenticated using (true);
-create policy "usuarios editan relacion" on articulo_proveedor for all to authenticated using (true) with check (true);
-
--- Los movimientos no se editan ni se borran, para conservar el historial
-create policy "usuarios leen movimientos" on movimientos for select to authenticated using (true);
-create policy "usuarios registran movimientos" on movimientos for insert to authenticated with check (true);
+-- ...ni al borrarse
+create or replace function revertir_stock_al_borrar() returns trigger
+language plpgsql as $$
+begin
+  if not old.anulado and not old.historico then
+    update articulos
+       set stock = stock - case old.tipo when 'salida' then -old.cantidad else old.cantidad end
+     where id = old.articulo_id;
+  end if;
+  return old;
+end;
+$$;

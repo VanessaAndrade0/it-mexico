@@ -5,14 +5,14 @@ import { esc, $ } from "./util.js";
 export function renderInventario() {
   const q = $("#buscarArticulo").value.trim().toLowerCase();
   const lista = estado.articulos.filter(a =>
-    !q || [a.nombre, a.sku, a.ubicacion, a.categoria].join(" ").toLowerCase().includes(q));
+    !q || [a.nombre, a.sku, a.marca, a.modelo, a.ubicacion, a.categoria].join(" ").toLowerCase().includes(q));
 
   $("#tablaArticulos").innerHTML = lista.length
     ? lista.map(a => {
         const clase = a.stock <= 0 ? "agotado" : a.minimo > 0 && a.stock <= a.minimo ? "bajo" : "";
         return `<tr class="clic ${clase}" data-id="${a.id}">
           <td>${esc(a.sku || "—")}</td>
-          <td><b>${esc(a.nombre)}</b></td>
+          <td><b>${esc(a.nombre)}</b>${a.marca || a.modelo ? `<div class="nota">${esc([a.marca, a.modelo].filter(Boolean).join(" · "))}</div>` : ""}</td>
           <td>${esc(a.categoria || "—")}</td>
           <td>${esc(a.ubicacion || "—")}</td>
           <td>${esc(proveedoresDe(a.id).map(p => p.nombre).join(", ") || "—")}</td>
@@ -48,10 +48,15 @@ function abrirArticulo(articulo, recargar) {
   modal.innerHTML = `<form method="dialog" id="formArticulo">
     <h2>${nuevo ? "Nuevo artículo" : esc(a.nombre)}</h2>
     <label>Nombre <input name="nombre" required value="${esc(a.nombre)}"></label>
-    <label>SKU <input name="sku" value="${esc(a.sku || "")}"></label>
-    <label>Categoría <input name="categoria" value="${esc(a.categoria || "")}"></label>
-    <label>Ubicación <input name="ubicacion" value="${esc(a.ubicacion || "")}"></label>
-    <label>Mínimo para alerta <input name="minimo" type="number" min="0" value="${a.minimo}"></label>
+    <div class="form-2">
+      <label>SKU / número de parte <input name="sku" value="${esc(a.sku || "")}"></label>
+      <label>Categoría <input name="categoria" value="${esc(a.categoria || "")}" list="listaCategorias"></label>
+      <label>Marca <input name="marca" value="${esc(a.marca || "")}"></label>
+      <label>Modelo <input name="modelo" value="${esc(a.modelo || "")}"></label>
+      <label>Ubicación <input name="ubicacion" value="${esc(a.ubicacion || "")}" placeholder="Ej. IT-4-04"></label>
+      <label>Mínimo para alerta <input name="minimo" type="number" min="0" value="${a.minimo}"></label>
+    </div>
+    <datalist id="listaCategorias">${[...new Set(estado.articulos.map(x => x.categoria).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join("")}</datalist>
     ${nuevo ? `<label>Stock inicial <input name="stock" type="number" min="0" value="0"></label>` : `<p class="muted">Stock actual: <b>${a.stock}</b>. Para cambiarlo registra una entrada, salida o ajuste.</p>`}
     <label>Proveedores</label>
     <div class="checklist">${estado.proveedores.map(p =>
@@ -86,9 +91,11 @@ function abrirArticulo(articulo, recargar) {
     const f = new FormData(e.target);
     const datos = {
       nombre: f.get("nombre").trim(),
-      sku: f.get("sku").trim(),
-      categoria: f.get("categoria").trim(),
-      ubicacion: f.get("ubicacion").trim(),
+      sku: f.get("sku").trim() || null,
+      categoria: f.get("categoria").trim() || null,
+      marca: f.get("marca").trim() || null,
+      modelo: f.get("modelo").trim() || null,
+      ubicacion: f.get("ubicacion").trim() || null,
       minimo: Number(f.get("minimo")) || 0,
     };
     if (nuevo) datos.stock = Number(f.get("stock")) || 0;

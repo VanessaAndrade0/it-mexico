@@ -23,13 +23,13 @@ export function renderMovimientos() {
     ? estado.movimientos.map(m => `<tr class="${m.anulado ? "anulado" : ""}">
         <td>${formatoFecha(m.fecha)}</td>
         <td>${m.tipo}</td>
-        <td>${esc(m.articulos?.nombre || "")}${m.nota ? `<div class="nota">${esc(m.nota)}</div>` : ""}</td>
+        <td>${esc(m.articulos?.nombre || "")}${m.serie ? `<div class="nota">S/N ${esc(m.serie)}</div>` : ""}${m.nota ? `<div class="nota">${esc(m.nota)}</div>` : ""}</td>
         <td class="num">${m.tipo === "salida" ? "−" : ""}${m.cantidad}</td>
         <td>${esc(m.ticket || "")}</td>
         <td>${esc(m.sucursal || "")}</td>
         <td>${esc(m.solicitante || "")}</td>
         <td>${esc(m.lpn || "")}</td>
-        <td>${esc(m.registrado_por || "")}${m.editado_por ? `<div class="nota">Editado por ${esc(m.editado_por)}</div>` : ""}</td>
+        <td>${m.historico ? `<span class="pill gris">Historial</span>` : esc(m.registrado_por || "")}${m.editado_por ? `<div class="nota">Editado por ${esc(m.editado_por)}</div>` : ""}</td>
         <td class="acciones">${m.anulado ? `<span class="etiqueta">Anulado</span>` : `<button class="btn small" data-editar="${m.id}">Editar</button>`}<button class="btn small danger" data-eliminar="${m.id}">Eliminar</button></td>
       </tr>`).join("")
     : `<tr><td colspan="10" class="empty">Sin movimientos todavía.</td></tr>`;
@@ -122,7 +122,9 @@ function abrirEliminar(m, recargar) {
   modal.innerHTML = `<form method="dialog" id="formEliminarMov">
     <h2>Eliminar movimiento</h2>
     <p><b>${m.tipo} de ${m.cantidad}</b> · ${esc(m.articulos?.nombre || "")} · ${formatoFecha(m.fecha)}</p>
-    <p class="muted">${m.anulado
+    <p class="muted">${m.historico
+      ? "Es un registro del historial importado, así que el stock no cambia."
+      : m.anulado
       ? "Este movimiento ya estaba anulado, así que el stock no cambia."
       : `El stock se corrige solo (${signo}${Math.abs(cambio)}).`} Se borra del historial y no se puede recuperar.</p>
     <p class="error" id="errEliminarMov"></p>
