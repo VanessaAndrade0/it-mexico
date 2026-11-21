@@ -8,6 +8,7 @@ import { iniciarProveedores, renderProveedores } from "./proveedores.js";
 import { iniciarTrucks, renderTrucks } from "./truck.js";
 import { iniciarExcel } from "./excel.js";
 import { iniciarSucursales, renderSucursales } from "./sucursales.js";
+import { iniciarAgenda, renderAgenda } from "./agenda.js";
 
 // Trae todo de Supabase y vuelve a dibujar las pantallas
 async function recargar() {
@@ -31,6 +32,7 @@ async function recargar() {
   seguro("Proveedores", renderProveedores);
   seguro("Trucks", renderTrucks);
   seguro("Sucursales", renderSucursales);
+  seguro("Agenda", renderAgenda);
 }
 
 // Si una pantalla falla, las demás siguen funcionando y se avisa cuál fue
@@ -64,4 +66,5 @@ seguro("Proveedores", () => iniciarProveedores(recargar));
 seguro("Trucks", () => iniciarTrucks(recargar));
 seguro("Excel", () => iniciarExcel(recargar));
 seguro("Sucursales", () => iniciarSucursales(recargar));
+seguro("Agenda", () => iniciarAgenda(recargar));
 iniciarAuth(recargar);

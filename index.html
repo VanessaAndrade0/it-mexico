@@ -36,6 +36,7 @@
         <button data-tab="sucursales">Sucursales</button>
         <button data-tab="proveedores">Proveedores</button>
         <button data-tab="excel">Excel</button>
+        <button data-tab="agenda">Agenda <span class="badge" id="agendaBadge" hidden></span></button>
       </nav>
     </header>
 
@@ -290,6 +291,51 @@
           </div>
           <p class="muted" id="expMensaje"></p>
         </div>
+      </section>
+      <!-- AGENDA -->
+      <section data-view="agenda" hidden>
+        <div class="section-head">
+          <h2>Agenda</h2>
+          <div class="row">
+            <div class="segmento" id="agVista">
+              <button type="button" data-v="tablero" class="active">Tablero</button>
+              <button type="button" data-v="calendario">Calendario</button>
+            </div>
+            <button class="btn" id="btnNuevoEvento">+ Evento</button>
+            <button class="btn primary" id="btnNuevaTarea">+ Tarea</button>
+          </div>
+        </div>
+        <p class="muted">Pendientes del equipo y recados para cuando alguien sale de viaje. Arrastra las tarjetas entre columnas o usa sus botones. En el calendario toca un día para agendar.</p>
+        <div id="agAvisos" class="alertas"></div>
+
+        <div id="agTablero">
+          <div class="row filtros">
+            <input id="agBuscar" placeholder="Buscar en tareas y recados">
+            <select id="agPara"><option value="">De todos</option></select>
+          </div>
+          <div class="kanban" id="kanban"></div>
+        </div>
+
+        <div id="agCalendario" hidden>
+          <div class="cal-barra">
+            <button class="btn small" id="calPrev" aria-label="Mes anterior">‹</button>
+            <b id="calMes"></b>
+            <button class="btn small" id="calNext" aria-label="Mes siguiente">›</button>
+            <button class="btn small" id="calHoy">Hoy</button>
+            <span class="cal-leyenda">
+              <span><i class="punto tipo-reunion"></i>Reunión</span>
+              <span><i class="punto tipo-viaje"></i>Viaje</span>
+              <span><i class="punto tipo-vacaciones"></i>Vacaciones</span>
+              <span><i class="punto tipo-evento"></i>Evento</span>
+              <span><i class="punto tipo-recordatorio"></i>Recordatorio</span>
+              <span><i class="punto tarea"></i>Fecha límite</span>
+            </span>
+          </div>
+          <div class="cal" id="cal"></div>
+          <h3>En este mes</h3>
+          <div class="lista-agenda" id="calLista"></div>
+        </div>
+        <datalist id="listaPersonas"></datalist>
       </section>
     </main>
   </div>
