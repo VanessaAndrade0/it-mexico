@@ -58,6 +58,8 @@ $("#tabs").addEventListener("click", e => {
   if (!boton) return;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === boton));
   document.querySelectorAll("main section").forEach(s => s.hidden = s.dataset.view !== boton.dataset.tab);
+  boton.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  window.scrollTo({ top: 0 });
 });
 
 seguro("Inventario", () => iniciarInventario(recargar));

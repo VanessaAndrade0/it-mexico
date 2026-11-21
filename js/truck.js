@@ -88,7 +88,7 @@ function renderAlertas() {
     .sort((a, b) => a.t.fecha_estimada.localeCompare(b.t.fecha_estimada));
 
   $("#alertasTrucks").innerHTML = avisos.map(({ t, s }) => {
-    const que = `<b>${esc(nombreDe(t))}</b>${t.proveedores?.nombre ? ` de ${esc(t.proveedores.nombre)}` : ""}: ${resumenArticulos(t)}`;
+    const que = `<b>${esc(nombreDe(t))}</b>${t.proveedores?.nombre ? ` de ${esc(t.proveedores.nombre)}` : ""}${lineasDe(t).length ? `: ${resumenArticulos(t)}` : ""}`;
     return s.tipo === "atrasado"
       ? `<div class="alert critico">Atrasado ${dias(s.dias)} · ${que}. Se esperaba el ${fechaCorta(t.fecha_estimada)}.</div>`
       : `<div class="alert">${s.dias === 0 ? "Llega hoy" : s.dias === 1 ? "Llega mañana" : `Llega en ${dias(s.dias)}`} · ${que}.</div>`;
