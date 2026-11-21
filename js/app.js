@@ -26,11 +26,28 @@ async function recargar() {
   estado.trucks = trk.data || [];
   estado.sucursales = suc.data || [];
 
-  renderInventario();
-  renderMovimientos();
-  renderProveedores();
-  renderTrucks();
-  renderSucursales();
+  seguro("Inventario", renderInventario);
+  seguro("Movimientos", renderMovimientos);
+  seguro("Proveedores", renderProveedores);
+  seguro("Trucks", renderTrucks);
+  seguro("Sucursales", renderSucursales);
+}
+
+// Si una pantalla falla, las demás siguen funcionando y se avisa cuál fue
+function seguro(nombre, fn) {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`Error en ${nombre}:`, error);
+    let aviso = document.querySelector("#avisoError");
+    if (!aviso) {
+      aviso = document.createElement("div");
+      aviso.id = "avisoError";
+      aviso.className = "alert critico wrap";
+      document.body.prepend(aviso);
+    }
+    aviso.innerHTML += `<div><b>No cargó ${nombre}:</b> ${error.message}. Revisa que index.html y los archivos de js sean los últimos.</div>`;
+  }
 }
 
 // Cambiar de pestaña
@@ -41,10 +58,10 @@ $("#tabs").addEventListener("click", e => {
   document.querySelectorAll("main section").forEach(s => s.hidden = s.dataset.view !== boton.dataset.tab);
 });
 
-iniciarInventario(recargar);
-iniciarMovimientos(recargar);
-iniciarProveedores(recargar);
-iniciarTrucks(recargar);
-iniciarExcel(recargar);
-iniciarSucursales(recargar);
+seguro("Inventario", () => iniciarInventario(recargar));
+seguro("Movimientos", () => iniciarMovimientos(recargar));
+seguro("Proveedores", () => iniciarProveedores(recargar));
+seguro("Trucks", () => iniciarTrucks(recargar));
+seguro("Excel", () => iniciarExcel(recargar));
+seguro("Sucursales", () => iniciarSucursales(recargar));
 iniciarAuth(recargar);
