@@ -25,9 +25,9 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          if [ -z "$https://bkwoblsftrqwcthbwvfd.supabase.co" ]; then echo "Falta el secreto https://bkwoblsftrqwcthbwvfd.supabase.co"; exit 1; fi
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "Falta el secreto SUPABASE_DB_URL"; exit 1; fi
           fecha=$(date -u +%Y-%m-%d)
-          /usr/lib/postgresql/17/bin/pg_dump "$https://bkwoblsftrqwcthbwvfd.supabase.co" \
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
             --schema=public --no-owner --no-privileges \
             --file="it-mexico-$fecha.sql"
           gzip "it-mexico-$fecha.sql"
