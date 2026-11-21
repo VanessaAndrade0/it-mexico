@@ -197,7 +197,10 @@
       <section data-view="sucursales" hidden>
         <div class="section-head">
           <h2>Sucursales</h2>
-          <button class="btn primary" id="btnNuevaSucursal">+ Nueva sucursal</button>
+          <div class="row">
+            <button class="btn" id="btnImportarSucursales">Importar Excel</button>
+            <button class="btn primary" id="btnNuevaSucursal">+ Nueva sucursal</button>
+          </div>
         </div>
         <p class="muted">Cada sucursal tiene dos códigos: el de 5 caracteres con el que se identifica (NL023) y el de 4 caracteres que se usa al hacer la etiqueta LPN del envío. En los reportes se suman los movimientos de los dos.</p>
         <div id="avisoSucursales" class="alert" hidden></div>

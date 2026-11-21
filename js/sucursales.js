@@ -297,7 +297,177 @@ function descargar() {
   }
 }
 
+// ---------- Importar sucursales desde Excel ----------
+
+const CAMPOS_SUC = [
+  { clave: "codigo", etiqueta: "Código de 5 *", forma: /^[A-Z0-9]{5}$/, nombre: /c[oó]d|code|branch|sucursal|id/i },
+  { clave: "codigo_corto", etiqueta: "Código de 4", forma: /^[A-Z0-9]{4}$/, nombre: /c[oó]d|code|corto|short|4/i },
+  { clave: "nombre", etiqueta: "Nombre", nombre: /nombre|name|descrip|tienda|store/i },
+  { clave: "ciudad", etiqueta: "Ciudad", nombre: /ciudad|city|municip|localidad|location/i },
+];
+
+const imp = { libro: null, encabezados: [], filas: [], inicio: 0, mapa: {}, plan: null };
+const limpio = v => String(v ?? "").replace(/ /g, " ").replace(/\s+/g, " ").trim();
+
+function hojasVisibles(libro) {
+  const utiles = libro.SheetNames.filter((n, i) => !libro.Workbook?.Sheets?.[i]?.Hidden);
+  return utiles.length ? utiles : libro.SheetNames;
+}
+
+function leerHojaSuc() {
+  const filas = XLSX.utils.sheet_to_json(imp.libro.Sheets[$("#sucHoja").value], { header: 1, defval: "", raw: false });
+  let h = filas.findIndex(f => f.filter(c => limpio(c)).length >= 2);
+  if (h < 0) h = 0;
+  imp.encabezados = (filas[h] || []).map((c, i) => limpio(c) || `Columna ${i + 1}`);
+  imp.filas = filas.slice(h + 1).map((f, i) => Object.assign(f, { _fila: h + 2 + i })).filter(f => f.some(c => limpio(c)));
+
+  // Adivinar columnas: primero por la forma de los datos (5 o 4 caracteres), luego por el encabezado
+  const usadas = new Set();
+  const parecido = (i, re) => {
+    const vals = imp.filas.map(f => limpio(f[i]).toUpperCase()).filter(Boolean);
+    return vals.length ? vals.filter(v => re.test(v)).length / vals.length : 0;
+  };
+  imp.mapa = {};
+  for (const campo of CAMPOS_SUC) {
+    let mejor = -1, puntos = 0;
+    imp.encabezados.forEach((enc, i) => {
+      if (usadas.has(i)) return;
+      const p = (campo.forma ? parecido(i, campo.forma) * 2 : 0) + (campo.nombre.test(enc) ? 1 : 0);
+      if (p > puntos) { puntos = p; mejor = i; }
+    });
+    const suficiente = campo.forma ? puntos >= 1.2 : puntos >= 1;
+    imp.mapa[campo.clave] = suficiente ? mejor : -1;
+    if (suficiente) usadas.add(mejor);
+  }
+
+  $("#sucMapa").innerHTML = CAMPOS_SUC.map(c => `<label>${c.etiqueta}
+      <select data-campo="${c.clave}"><option value="-1">— No usar —</option>${imp.encabezados.map((e, i) =>
+        `<option value="${i}" ${i === imp.mapa[c.clave] ? "selected" : ""}>${esc(e)}</option>`).join("")}</select>
+    </label>`).join("");
+  armarPlanSuc();
+}
+
+function armarPlanSuc() {
+  const m = imp.mapa;
+  const val = (f, campo) => m[campo] >= 0 ? limpio(f[m[campo]]) : "";
+  const existentes = new Map(estado.sucursales.map(s => [s.codigo, s]));
+  const cortosDe = new Map(estado.sucursales.filter(s => s.codigo_corto).map(s => [s.codigo_corto, s.codigo]));
+  const vistos = new Set(), cortosArchivo = new Map();
+  const nuevas = [], actualizar = [], avisos = [];
+  let sinCambios = 0;
+
+  imp.filas.forEach(f => {
+    const fila = f._fila; // número de fila en Excel
+    const codigo = val(f, "codigo").toUpperCase();
+    if (!codigo) return;
+    if (!/^[A-Z0-9]{5}$/.test(codigo)) { avisos.push(`Fila ${fila}: “${codigo}” no tiene 5 caracteres; se omite.`); return; }
+    if (vistos.has(codigo)) { avisos.push(`Fila ${fila}: ${codigo} está repetida; se usa la primera.`); return; }
+    vistos.add(codigo);
+
+    let corto = val(f, "codigo_corto").toUpperCase();
+    if (corto && !/^[A-Z0-9]{4}$/.test(corto)) { avisos.push(`Fila ${fila}: el código de 4 “${corto}” de ${codigo} no tiene 4 caracteres; se deja vacío.`); corto = ""; }
+    if (corto && cortosArchivo.has(corto)) { avisos.push(`Fila ${fila}: el código de 4 ${corto} ya se usó para ${cortosArchivo.get(corto)}; se deja vacío en ${codigo}.`); corto = ""; }
+    if (corto && cortosDe.has(corto) && cortosDe.get(corto) !== codigo) { avisos.push(`Fila ${fila}: el código de 4 ${corto} ya es de ${cortosDe.get(corto)}; se deja vacío en ${codigo}.`); corto = ""; }
+    if (corto) cortosArchivo.set(corto, codigo);
+
+    const datos = { codigo, codigo_corto: corto || null, nombre: val(f, "nombre") || null, ciudad: val(f, "ciudad") || null };
+    const actual = existentes.get(codigo);
+    if (!actual) { nuevas.push(datos); return; }
+    // De las que ya existen solo se cambian los datos que vienen llenos y son distintos
+    const cambios = {};
+    for (const k of ["codigo_corto", "nombre", "ciudad"]) if (datos[k] && datos[k] !== actual[k]) cambios[k] = datos[k];
+    if (Object.keys(cambios).length) actualizar.push({ id: actual.id, codigo, cambios });
+    else sinCambios++;
+  });
+
+  imp.plan = { nuevas, actualizar };
+  $("#sucResumen").innerHTML = m.codigo < 0
+    ? `<span class="error">Elige qué columna tiene el código de 5.</span>`
+    : `<ul class="lista-simple">
+        <li><b>${nuevas.length}</b> sucursales nuevas</li>
+        <li><b>${actualizar.length}</b> que ya existen y se actualizan${sinCambios ? ` · ${sinCambios} sin cambios` : ""}</li>
+        ${avisos.length ? `<li class="tarde"><b>${avisos.length}</b> avisos:<div class="avisos-import">${avisos.slice(0, 30).map(a => `<div>${esc(a)}</div>`).join("")}${avisos.length > 30 ? `<div>Y ${avisos.length - 30} más.</div>` : ""}</div></li>` : ""}
+      </ul>`;
+  const muestra = [...nuevas, ...actualizar.map(a => ({ codigo: a.codigo, ...a.cambios, existe: true }))].slice(0, 8);
+  $("#sucVista").innerHTML = muestra.length ? `<table><thead><tr><th>Código de 5</th><th>Código de 4</th><th>Nombre</th><th>Ciudad</th><th></th></tr></thead><tbody>
+    ${muestra.map(x => `<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.codigo_corto || "")}</td><td>${esc(x.nombre || "")}</td><td>${esc(x.ciudad || "")}</td>
+      <td>${x.existe ? `<span class="pill gris">Se actualiza</span>` : `<span class="pill recibido">Nueva</span>`}</td></tr>`).join("")}
+    </tbody></table>` : "";
+  $("#btnSucImportar").disabled = m.codigo < 0 || !(nuevas.length || actualizar.length);
+}
+
+function abrirImportar(recargar) {
+  const modal = $("#modal");
+  modal.classList.add("ancho");
+  modal.innerHTML = `<form method="dialog" id="formImpSuc">
+    <h2>Importar sucursales desde Excel</h2>
+    <p class="muted">Sube el Excel con la lista de sucursales. Las nuevas se crean y las que ya existen se completan (se reconocen por el código de 5). No se borra nada.</p>
+    <label>Archivo (.xlsx, .xls o .csv) <input type="file" id="sucArchivo" accept=".xlsx,.xls,.csv"></label>
+    <div id="sucPaso2" hidden>
+      <label>Hoja <select id="sucHoja"></select></label>
+      <h3>¿Qué columna es cada dato?</h3>
+      <div class="form-grid" id="sucMapa"></div>
+      <h3>Resumen</h3>
+      <div id="sucResumen"></div>
+      <div class="table-wrap" id="sucVista"></div>
+    </div>
+    <p class="error" id="errImpSuc"></p>
+    <div class="row"><button class="btn primary" value="importar" id="btnSucImportar" disabled>Importar</button><button class="btn" value="cancelar" formnovalidate>Cancelar</button><span class="muted" id="progImpSuc"></span></div>
+  </form>`;
+  modal.addEventListener("close", () => modal.classList.remove("ancho"), { once: true });
+  modal.showModal();
+
+  $("#sucArchivo").addEventListener("change", async e => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    if (!window.XLSX) { $("#errImpSuc").textContent = "No se cargó el lector de Excel. Revisa tu conexión y recarga la página."; return; }
+    try {
+      imp.libro = XLSX.read(await archivo.arrayBuffer(), { type: "array" });
+      $("#sucHoja").innerHTML = hojasVisibles(imp.libro).map(n => `<option>${esc(n)}</option>`).join("");
+      $("#sucPaso2").hidden = false;
+      $("#errImpSuc").textContent = "";
+      leerHojaSuc();
+    } catch (error) {
+      console.error(error);
+      $("#errImpSuc").textContent = "No se pudo abrir el archivo. Revisa que sea .xlsx, .xls o .csv.";
+    }
+  });
+  $("#sucHoja").addEventListener("change", leerHojaSuc);
+  $("#sucMapa").addEventListener("change", e => {
+    const sel = e.target.closest("select[data-campo]");
+    if (sel) { imp.mapa[sel.dataset.campo] = Number(sel.value); armarPlanSuc(); }
+  });
+
+  $("#formImpSuc").addEventListener("submit", async e => {
+    if (e.submitter?.value !== "importar") return;
+    e.preventDefault();
+    const { nuevas, actualizar } = imp.plan;
+    const prog = t => { $("#progImpSuc").textContent = t; };
+    $("#btnSucImportar").disabled = true;
+    try {
+      for (let i = 0; i < nuevas.length; i += 500) {
+        prog(`Creando sucursales… ${Math.min(i + 500, nuevas.length)} de ${nuevas.length}`);
+        const { error } = await supabase.from("sucursales").insert(nuevas.slice(i, i + 500));
+        if (error) throw error;
+      }
+      let n = 0;
+      for (const a of actualizar) {
+        prog(`Actualizando… ${++n} de ${actualizar.length}`);
+        const { error } = await supabase.from("sucursales").update(a.cambios).eq("id", a.id);
+        if (error) throw error;
+      }
+      modal.close();
+      recargar();
+    } catch (error) {
+      console.error(error);
+      $("#errImpSuc").textContent = "No se pudo terminar: " + error.message + ". Lo que ya se guardó se queda; puedes volver a importar el mismo archivo.";
+      $("#btnSucImportar").disabled = false;
+    }
+  });
+}
+
 export function iniciarSucursales(recargar) {
+  $("#btnImportarSucursales").addEventListener("click", () => abrirImportar(recargar));
   $("#btnNuevaSucursal").addEventListener("click", () => abrirSucursal(null, recargar));
   $("#buscarSucursal").addEventListener("input", pintar);
   $("#filtroSucursal").addEventListener("change", pintar);

@@ -184,3 +184,6 @@ dialog.ancho { width: min(820px, calc(100% - 32px)); }
 .ayuda { font-size: 14px; color: var(--muted); }
 .enlace { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; padding: 0 2px; cursor: pointer; text-decoration: underline; }
 #formRevision td input { min-width: 110px; }
+#formImpSuc h3 { margin: 6px 0 0; font-size: 16px; }
+#formImpSuc #sucPaso2 { display: grid; gap: 10px; }
+.avisos-import { max-height: 140px; overflow-y: auto; font-size: 13px; margin-top: 4px; }
