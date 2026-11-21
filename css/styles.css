@@ -178,3 +178,9 @@ tfoot td { border-top: 2px solid var(--line); background: var(--surface-2); }
 .mayus { text-transform: uppercase; }
 #avisoSucursales p { margin: 4px 0; }
 #movSucursalInfo { min-height: 1em; font-weight: 500; }
+
+/* Revisión de códigos de sucursal */
+dialog.ancho { width: min(820px, calc(100% - 32px)); }
+.ayuda { font-size: 14px; color: var(--muted); }
+.enlace { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; padding: 0 2px; cursor: pointer; text-decoration: underline; }
+#formRevision td input { min-width: 110px; }
