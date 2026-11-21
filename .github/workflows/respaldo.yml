@@ -23,7 +23,7 @@ jobs:
 
       - name: Respaldar
         env:
-          SUPABASE_DB_URL: ${{ secrets.https://bkwoblsftrqwcthbwvfd.supabase.co }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ -z "$https://bkwoblsftrqwcthbwvfd.supabase.co" ]; then echo "Falta el secreto https://bkwoblsftrqwcthbwvfd.supabase.co"; exit 1; fi
           fecha=$(date -u +%Y-%m-%d)
