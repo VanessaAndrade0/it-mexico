@@ -1,0 +1,41 @@
+# Respaldo semanal de la base de datos de Supabase
+# Guarda una copia completa (estructura y datos) como archivo descargable en GitHub > Actions.
+# Necesita el secreto SUPABASE_DB_URL (ver README).
+name: Respaldo de la base de datos
+
+on:
+  schedule:
+    - cron: "17 8 * * 1"   # cada lunes a las 2:17 a.m. de Monterrey (8:17 UTC)
+  workflow_dispatch:        # botón "Run workflow" para hacerlo cuando quieras
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Instalar cliente de PostgreSQL 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Respaldar
+        env:
+          SUPABASE_DB_URL: ${{ secrets.https://bkwoblsftrqwcthbwvfd.supabase.co }}
+        run: |
+          if [ -z "$https://bkwoblsftrqwcthbwvfd.supabase.co" ]; then echo "Falta el secreto https://bkwoblsftrqwcthbwvfd.supabase.co"; exit 1; fi
+          fecha=$(date -u +%Y-%m-%d)
+          /usr/lib/postgresql/17/bin/pg_dump "$https://bkwoblsftrqwcthbwvfd.supabase.co" \
+            --schema=public --no-owner --no-privileges \
+            --file="it-mexico-$fecha.sql"
+          gzip "it-mexico-$fecha.sql"
+          ls -lh
+
+      - name: Guardar el respaldo
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-${{ github.run_number }}
+          path: "*.sql.gz"
+          retention-days: 90

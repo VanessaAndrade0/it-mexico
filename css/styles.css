@@ -313,7 +313,7 @@ tr.bajo:hover td, tr.agotado:hover td { filter: brightness(.98); }
 .tabs button:not(.active):hover { color: #fff; background: rgba(255, 255, 255, .08); }
 
 @media (max-width: 560px) {
-  .user span { display: none; }
+  .user > #userEmail, .user > .rol-tag { display: none; }
   .header-row h1 { font-size: 22px; }
   /* En el celular las tablas se deslizan de lado en vez de aplastar el texto */
   .table-wrap table { min-width: 680px; }
@@ -325,3 +325,21 @@ tr.bajo:hover td, tr.agotado:hover td { filter: brightness(.98); }
   dialog { padding: 16px; }
   .section-head .row { width: 100%; }
 }
+
+/* ===== Permisos por rol (la base de datos también los revisa) ===== */
+.rol-tag { background: rgba(255, 255, 255, .15); color: #fff; border-radius: 20px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
+.rol-tag:empty { display: none; }
+.aviso-pendiente { margin-top: 24px; max-width: 560px; }
+
+/* Solo admin: eliminar, quitar importaciones y administrar usuarios */
+body:not([data-rol="admin"]) :is(.solo-admin, [data-eliminar], #btnEliminarArticulo, #btnEliminarSucursal, [data-quitar-imp]) { display: none !important; }
+
+/* Solo lectura: se esconde todo lo que agrega o cambia */
+body[data-rol="lectura"] :is(.solo-editor, #formMovimiento, #btnNuevoArticulo, #btnNuevoTruck, #btnImportarTrucks,
+  #btnNuevaSucursal, #btnImportarSucursales, #btnNuevoProveedor, #btnNuevaTarea, #btnNuevoEvento,
+  [data-recibir], [data-editar], [data-mover], .recado-nuevo, #modal button[value="guardar"],
+  section[data-view="excel"] .pasos-excel:has(input[type="file"])) { display: none !important; }
+body[data-rol="lectura"] section[data-view="excel"] h2:has(+ .pasos-excel input[type="file"]) { display: none; }
+
+/* Cuenta pendiente: solo el aviso */
+body[data-rol="pendiente"] :is(#tabs, main > section) { display: none !important; }

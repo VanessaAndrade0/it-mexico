@@ -6,6 +6,7 @@ export const estado = {
   movimientos: [],
   trucks: [], // recepciones con sus artículos
   sucursales: [], // catálogo: codigo (5) y codigo_corto (4)
+  rol: null, // admin, editor, lectura o pendiente (tabla perfiles)
 };
 
 // Busca una sucursal por cualquiera de sus dos códigos

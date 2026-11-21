@@ -27,7 +27,7 @@
     <header class="band">
       <div class="wrap header-row">
         <h1>IT Mexico</h1>
-        <div class="user"><span id="userEmail"></span><button class="btn small ghost" id="btnLogout">Salir</button></div>
+        <div class="user"><span id="userEmail"></span><span id="rolTag" class="rol-tag"></span><button class="btn small ghost solo-admin" id="btnUsuarios">Usuarios <span class="badge" id="usuariosBadge" hidden></span></button><button class="btn small ghost" id="btnLogout">Salir</button></div>
       </div>
       <nav class="wrap tabs" id="tabs">
         <button data-tab="inventario" class="active">Inventario <span class="badge" id="lowBadge" hidden></span></button>
@@ -41,6 +41,12 @@
     </header>
 
     <main class="wrap">
+      <!-- Cuenta sin autorizar -->
+      <div id="avisoPendiente" class="card aviso-pendiente" hidden>
+        <h2>Tu cuenta todavía no tiene permiso</h2>
+        <p class="muted">Ya entraste, pero un administrador tiene que asignarte un rol para que puedas ver el inventario. Avísale a Vanessa, Jesús o Yssel y vuelve a cargar la página.</p>
+      </div>
+
       <!-- INVENTARIO -->
       <section data-view="inventario">
         <div class="section-head">
@@ -85,7 +91,7 @@
 
       <!-- MOVIMIENTOS -->
       <section data-view="movimientos" hidden>
-        <h2>Registrar movimiento</h2>
+        <h2 class="solo-editor">Registrar movimiento</h2>
         <form id="formMovimiento" class="card form-grid">
           <label>Tipo
             <select id="movTipo">
