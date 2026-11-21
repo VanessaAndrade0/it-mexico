@@ -1,5 +1,5 @@
 import { supabase } from "./supabase.js";
-import { estado, proveedoresDe } from "./estado.js";
+import { estado, proveedoresDe, codigoSucursal, sucursalPorCodigo } from "./estado.js";
 import { esc, $, traerTodo, formatoFecha } from "./util.js";
 
 // XLSX viene de la librería SheetJS que se carga en index.html
@@ -613,9 +613,10 @@ async function exportarMes() {
       Artículo: k, "Piezas entregadas": v.piezas, Entregas: v.veces,
     })), [34, 18, 10]), "Consumo por artículo");
 
-    XLSX.utils.book_append_sheet(libro, hojaDesde(agrupar(salidas, m => m.sucursal).map(([k, v]) => ({
-      Sucursal: k, "Piezas entregadas": v.piezas, Entregas: v.veces,
-    })), [14, 18, 10]), "Consumo por sucursal");
+    XLSX.utils.book_append_sheet(libro, hojaDesde(agrupar(salidas, m => codigoSucursal(m.sucursal)).map(([k, v]) => ({
+      Sucursal: k, "Código LPN": sucursalPorCodigo(k)?.codigo_lpn || "", Nombre: sucursalPorCodigo(k)?.nombre || "",
+      "Piezas entregadas": v.piezas, Entregas: v.veces,
+    })), [14, 12, 24, 18, 10]), "Consumo por sucursal");
 
     XLSX.utils.book_append_sheet(libro, hojaDesde(trucks.map(t => ({
       "Orden de compra": t.orden_compra || "", "Fecha de orden": fechaDia(t.fecha_orden), Proveedor: t.proveedores?.nombre || "",

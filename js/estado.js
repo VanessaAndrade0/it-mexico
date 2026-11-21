@@ -5,7 +5,21 @@ export const estado = {
   relaciones: [], // { articulo_id, proveedor_id }
   movimientos: [],
   trucks: [], // recepciones con sus artículos
+  sucursales: [], // catálogo: codigo (5) y codigo_lpn (4)
 };
+
+// Busca una sucursal por cualquiera de sus dos códigos
+export function sucursalPorCodigo(codigo) {
+  const c = String(codigo || "").trim().toUpperCase();
+  if (!c) return null;
+  return estado.sucursales.find(s => s.codigo === c || s.codigo_lpn === c) || null;
+}
+
+// Código de 5 con el que se identifica la sucursal (si se escribió el de 4, se convierte)
+export function codigoSucursal(codigo) {
+  const c = String(codigo || "").trim().toUpperCase();
+  return sucursalPorCodigo(c)?.codigo || c;
+}
 
 export function proveedoresDe(articuloId) {
   const ids = estado.relaciones.filter(r => r.articulo_id === articuloId).map(r => r.proveedor_id);

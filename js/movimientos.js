@@ -1,5 +1,5 @@
 import { supabase } from "./supabase.js";
-import { estado } from "./estado.js";
+import { estado, sucursalPorCodigo, codigoSucursal } from "./estado.js";
 import { esc, formatoFecha, $, traerTodo, descargarExcel } from "./util.js";
 import { MESES, numero, opciones, agrupar, tablaGrupos } from "./filtros.js";
 
@@ -80,7 +80,7 @@ function llenarFiltros() {
   opciones($("#fMes"), MESES.map((m, i) => ({ valor: i + 1, texto: m })));
   opciones($("#fCategoria"), unicos(m => m.articulos?.categoria).sort());
   opciones($("#fArticulo"), unicos(m => m.articulos?.nombre).sort((a, b) => a.localeCompare(b)));
-  opciones($("#fSucursal"), unicos(m => m.sucursal).sort());
+  opciones($("#fSucursal"), unicos(m => codigoSucursal(m.sucursal)).sort());
   opciones($("#fMetodo"), unicos(metodoDe).sort());
 }
 
@@ -93,7 +93,7 @@ function filtrados() {
     (!v("#fTipo") || m.tipo === v("#fTipo")) &&
     (!v("#fCategoria") || m.articulos?.categoria === v("#fCategoria")) &&
     (!v("#fArticulo") || m.articulos?.nombre === v("#fArticulo")) &&
-    (!v("#fSucursal") || m.sucursal === v("#fSucursal")) &&
+    (!v("#fSucursal") || codigoSucursal(m.sucursal) === v("#fSucursal")) &&
     (!v("#fMetodo") || metodoDe(m) === v("#fMetodo")) &&
     (!v("#fOrigen") || (v("#fOrigen") === "historial") === !!m.historico) &&
     (!texto || [m.ticket, m.lpn, m.serie, m.solicitante, m.nota, m.orden_compra].join(" ").toLowerCase().includes(texto)));
@@ -103,7 +103,7 @@ function filtrados() {
 const AGRUPAR = {
   articulo: { titulo: "Artículo", clave: m => m.articulos?.nombre, filtro: "#fArticulo" },
   categoria: { titulo: "Categoría", clave: m => m.articulos?.categoria, filtro: "#fCategoria" },
-  sucursal: { titulo: "Sucursal", clave: m => m.sucursal, filtro: "#fSucursal" },
+  sucursal: { titulo: "Sucursal", clave: m => codigoSucursal(m.sucursal), filtro: "#fSucursal" },
   anio: { titulo: "Año", clave: anioDe, filtro: "#fAnio", porNombre: true },
   mes: { titulo: "Mes", clave: m => `${anioDe(m)}-${String(mesDe(m)).padStart(2, "0")} ${MESES[mesDe(m) - 1]}`, porNombre: true },
   metodo: { titulo: "Método de envío", clave: metodoDe, filtro: "#fMetodo" },
@@ -194,7 +194,18 @@ function verGrupo(valor) {
   pintarHistorial();
 }
 
+// Muestra el código LPN y el nombre de la sucursal mientras se escribe
+function infoSucursal() {
+  const valor = $("#movSucursal").value.trim();
+  const s = sucursalPorCodigo(valor);
+  $("#movSucursalInfo").className = "nota" + (valor && !s ? " tarde" : "");
+  $("#movSucursalInfo").textContent = !valor ? ""
+    : s ? [s.codigo !== valor.toUpperCase() && `Se guarda como ${s.codigo}`, s.codigo_lpn ? `LPN: ${s.codigo_lpn}` : "Sin código LPN", s.nombre].filter(Boolean).join(" · ")
+    : "No está en el catálogo de sucursales";
+}
+
 export function iniciarMovimientos(recargar) {
+  $("#movSucursal").addEventListener("input", infoSucursal);
   // Filtros del historial
   const filtros = ["#fAnio", "#fMes", "#fTipo", "#fCategoria", "#fArticulo", "#fSucursal", "#fMetodo", "#fOrigen", "#gAgrupar"];
   $("#fJuntar").addEventListener("change", () => { pagina = 0; pintarHistorial(); });
@@ -228,7 +239,7 @@ export function iniciarMovimientos(recargar) {
       articulo_id: $("#movArticulo").value,
       cantidad,
       ticket: $("#movTicket").value.trim().toUpperCase() || null,
-      sucursal: $("#movSucursal").value.trim().toUpperCase() || null,
+      sucursal: codigoSucursal($("#movSucursal").value) || null,
       solicitante: $("#movSolicitante").value.trim() || null,
       lpn: $("#movLpn").value.trim() || null,
       proveedor_id: tipo === "entrada" ? $("#movProveedor").value || null : null,
@@ -238,6 +249,7 @@ export function iniciarMovimientos(recargar) {
     if (error) { $("#movMensaje").textContent = "No se pudo registrar."; return; }
 
     e.target.reset();
+    $("#movSucursalInfo").textContent = "";
     $("#movProveedorWrap").hidden = true;
     $("#movMensaje").textContent = "Movimiento registrado.";
     recargar();

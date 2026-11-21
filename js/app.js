@@ -7,26 +7,30 @@ import { iniciarMovimientos, renderMovimientos } from "./movimientos.js";
 import { iniciarProveedores, renderProveedores } from "./proveedores.js";
 import { iniciarTrucks, renderTrucks } from "./truck.js";
 import { iniciarExcel } from "./excel.js";
+import { iniciarSucursales, renderSucursales } from "./sucursales.js";
 
 // Trae todo de Supabase y vuelve a dibujar las pantallas
 async function recargar() {
-  const [art, prov, rel, mov, trk] = await Promise.all([
+  const [art, prov, rel, mov, trk, suc] = await Promise.all([
     supabase.from("articulos").select("*").order("nombre"),
     supabase.from("proveedores").select("*").order("nombre"),
     supabase.from("articulo_proveedor").select("*"),
     supabase.from("movimientos").select("*, articulos(nombre)").order("fecha", { ascending: false }).limit(100),
     supabase.from("recepciones").select("*, proveedores(nombre), recepcion_articulos(id, articulo_id, cantidad, articulos(nombre))").order("fecha", { ascending: false }).limit(200),
+    supabase.from("sucursales").select("*").order("codigo"),
   ]);
   estado.articulos = art.data || [];
   estado.proveedores = prov.data || [];
   estado.relaciones = rel.data || [];
   estado.movimientos = mov.data || [];
   estado.trucks = trk.data || [];
+  estado.sucursales = suc.data || [];
 
   renderInventario();
   renderMovimientos();
   renderProveedores();
   renderTrucks();
+  renderSucursales();
 }
 
 // Cambiar de pestaña
@@ -42,4 +46,5 @@ iniciarMovimientos(recargar);
 iniciarProveedores(recargar);
 iniciarTrucks(recargar);
 iniciarExcel(recargar);
+iniciarSucursales(recargar);
 iniciarAuth(recargar);
