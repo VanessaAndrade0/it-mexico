@@ -199,17 +199,17 @@
           <h2>Sucursales</h2>
           <button class="btn primary" id="btnNuevaSucursal">+ Nueva sucursal</button>
         </div>
-        <p class="muted">Cada sucursal tiene dos códigos: el de 5 caracteres con el que se identifica (NL023) y el de 4 con el que se hace el LPN. En los reportes se suman los movimientos de los dos.</p>
+        <p class="muted">Cada sucursal tiene dos códigos: el de 5 caracteres con el que se identifica (NL023) y el de 4 caracteres que se usa al hacer la etiqueta LPN del envío. En los reportes se suman los movimientos de los dos.</p>
         <div id="avisoSucursales" class="alert" hidden></div>
         <div class="card panel-filtros">
           <div class="filtros-grid">
-            <label class="span2">Buscar <input id="buscarSucursal" placeholder="Código, código LPN, nombre o ciudad"></label>
+            <label class="span2">Buscar <input id="buscarSucursal" placeholder="Código de 5, código de 4, nombre o ciudad"></label>
             <label>Mostrar
               <select id="filtroSucursal">
                 <option value="">Todas</option>
                 <option value="activas">Activas</option>
                 <option value="inactivas">Inactivas</option>
-                <option value="sinlpn">Sin código LPN</option>
+                <option value="sinlpn">Sin código de 4</option>
               </select>
             </label>
           </div>

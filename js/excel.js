@@ -614,7 +614,7 @@ async function exportarMes() {
     })), [34, 18, 10]), "Consumo por artículo");
 
     XLSX.utils.book_append_sheet(libro, hojaDesde(agrupar(salidas, m => codigoSucursal(m.sucursal)).map(([k, v]) => ({
-      Sucursal: k, "Código LPN": sucursalPorCodigo(k)?.codigo_lpn || "", Nombre: sucursalPorCodigo(k)?.nombre || "",
+      Sucursal: k, "Código de 4": sucursalPorCodigo(k)?.codigo_corto || "", Nombre: sucursalPorCodigo(k)?.nombre || "",
       "Piezas entregadas": v.piezas, Entregas: v.veces,
     })), [14, 12, 24, 18, 10]), "Consumo por sucursal");
 

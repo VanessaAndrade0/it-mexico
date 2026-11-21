@@ -194,13 +194,13 @@ function verGrupo(valor) {
   pintarHistorial();
 }
 
-// Muestra el código LPN y el nombre de la sucursal mientras se escribe
+// Muestra el código de 4 y el nombre de la sucursal mientras se escribe
 function infoSucursal() {
   const valor = $("#movSucursal").value.trim();
   const s = sucursalPorCodigo(valor);
   $("#movSucursalInfo").className = "nota" + (valor && !s ? " tarde" : "");
   $("#movSucursalInfo").textContent = !valor ? ""
-    : s ? [s.codigo !== valor.toUpperCase() && `Se guarda como ${s.codigo}`, s.codigo_lpn ? `LPN: ${s.codigo_lpn}` : "Sin código LPN", s.nombre].filter(Boolean).join(" · ")
+    : s ? [s.codigo !== valor.toUpperCase() && `Se guarda como ${s.codigo}`, s.codigo_corto ? `Código de 4: ${s.codigo_corto}` : "Sin código de 4", s.nombre].filter(Boolean).join(" · ")
     : "No está en el catálogo de sucursales";
 }
 
