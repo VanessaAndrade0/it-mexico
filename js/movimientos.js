@@ -234,11 +234,17 @@ export function iniciarMovimientos(recargar) {
       $("#movMensaje").textContent = "La cantidad no es válida.";
       return;
     }
+    const ticket = $("#movTicket").value.trim().toUpperCase();
+    if (tipo === "salida" && !ticket) {
+      $("#movMensaje").textContent = "Escribe el número de ticket: toda salida necesita ticket.";
+      $("#movTicket").focus();
+      return;
+    }
     const movimiento = {
       tipo,
       articulo_id: $("#movArticulo").value,
       cantidad,
-      ticket: $("#movTicket").value.trim().toUpperCase() || null,
+      ticket: ticket || null,
       sucursal: codigoSucursal($("#movSucursal").value) || null,
       solicitante: $("#movSolicitante").value.trim() || null,
       lpn: $("#movLpn").value.trim() || null,
