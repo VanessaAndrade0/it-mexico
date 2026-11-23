@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { estado, proveedoresDe, bajoMinimo } from "./estado.js";
-import { esc, $, descargarExcel } from "./util.js";
+import { esc, $, descargarExcel, pitido } from "./util.js";
 import { numero, opciones, agrupar, tablaGrupos } from "./filtros.js";
 
 const estadoDe = a => a.stock <= 0 ? "Agotado" : a.minimo > 0 && a.stock <= a.minimo ? "Bajo mínimo" : "OK";
@@ -226,20 +226,6 @@ function sumarLectura(codigo, piezas = 1) {
   if (a) conteo[a.id] = (conteo[a.id] || 0) + piezas;
   else desconocidos[normal(codigo)] = (desconocidos[normal(codigo)] || 0) + piezas;
   return a;
-}
-
-// Sonido corto para saber si la lectura entró sin voltear a la pantalla
-let audio;
-function pitido(bien) {
-  try {
-    audio ||= new AudioContext();
-    const o = audio.createOscillator(), g = audio.createGain();
-    o.frequency.value = bien ? 880 : 220;
-    g.gain.value = 0.08;
-    o.connect(g).connect(audio.destination);
-    o.start();
-    o.stop(audio.currentTime + (bien ? 0.08 : 0.3));
-  } catch { /* sin sonido */ }
 }
 
 function filasConteo(todos) {

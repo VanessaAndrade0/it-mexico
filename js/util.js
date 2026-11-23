@@ -33,3 +33,28 @@ export function descargarExcel(nombreArchivo, hojas) {
   }
   XLSX.writeFile(libro, nombreArchivo);
 }
+
+// Sonido corto para saber si la lectura entró sin voltear a la pantalla
+let audio;
+export function pitido(bien) {
+  try {
+    audio ||= new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = bien ? 880 : 220;
+    g.gain.value = 0.08;
+    o.connect(g).connect(audio.destination);
+    o.start();
+    o.stop(audio.currentTime + (bien ? 0.08 : 0.3));
+  } catch { /* sin sonido */ }
+}
+
+// Copia un texto al portapapeles (para pegarlo en ServiceNow)
+export async function copiar(texto) {
+  try { await navigator.clipboard.writeText(texto); return true; } catch { /* sigue con el método viejo */ }
+  const t = Object.assign(document.createElement("textarea"), { value: texto });
+  document.body.append(t);
+  t.select();
+  const ok = document.execCommand("copy");
+  t.remove();
+  return ok;
+}

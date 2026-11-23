@@ -355,3 +355,22 @@ input.contado { width: 80px; height: 32px; text-align: right; }
 .dif-mas { color: #1D7F55; }
 .dif-menos { color: var(--danger); }
 @media (max-width: 640px) { .conteo-captura { grid-template-columns: 1fr; } }
+
+/* Salida por lote */
+.lote h3 { margin: 8px 0 0; font-size: 16px; }
+.lote-ticket { display: grid; grid-template-columns: 1.3fr 80px 110px 1.3fr auto; gap: 10px; align-items: end; }
+.lote-pegar summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.lote-pegar textarea { width: 100%; font: 14px monospace; }
+#ltSerie { font-size: 18px; font-weight: 600; letter-spacing: .5px; }
+.lectura.siguiente { background: var(--accent-soft); color: var(--accent-dark); }
+.lote-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.lote-hoja { border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.lote-hoja.completo { border-left-color: var(--accent); }
+.lote-hoja.listo { border-left-color: #1D7F55; background: #F3FAF6; }
+.lote-req { font-size: 16px; }
+.lote-series { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+.lote-series li { display: flex; gap: 6px; align-items: center; }
+.lote-series code { font-size: 14px; margin-right: auto; }
+.lote .btn.small { height: 28px; padding: 0 9px; }
+.lote .btn.quitar { color: var(--danger); }
+@media (max-width: 640px) { .lote-ticket { grid-template-columns: 1fr 1fr; } }

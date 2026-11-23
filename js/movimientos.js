@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { estado, sucursalPorCodigo, codigoSucursal } from "./estado.js";
-import { esc, formatoFecha, $, traerTodo, descargarExcel } from "./util.js";
+import { esc, formatoFecha, $, traerTodo, descargarExcel, pitido, copiar } from "./util.js";
 import { MESES, numero, opciones, agrupar, tablaGrupos } from "./filtros.js";
 
 // Convierte una fecha de Supabase al formato que usa <input type="datetime-local">
@@ -206,6 +206,7 @@ function infoSucursal() {
 
 export function iniciarMovimientos(recargar) {
   $("#movSucursal").addEventListener("input", infoSucursal);
+  $("#btnLote").addEventListener("click", () => abrirLote(recargar));
   // Filtros del historial
   const filtros = ["#fAnio", "#fMes", "#fTipo", "#fCategoria", "#fArticulo", "#fSucursal", "#fMetodo", "#fOrigen", "#gAgrupar"];
   $("#fJuntar").addEventListener("change", () => { pagina = 0; pintarHistorial(); });
@@ -334,4 +335,299 @@ function abrirEliminar(m, recargar) {
     modal.close();
     recargar();
   });
+}
+
+// ---------- Salida por lote: el carrito del día ----------
+// 1) Se capturan los tickets del carrito con sus piezas, sucursal y LPN.
+// 2) Se escanean las series con el Zebra y cada una cae en el siguiente lugar libre.
+// 3) Queda una hoja por ticket con botones de copiar para pasarlo a ServiceNow.
+// 4) Se registran todas las salidas de una vez, una por serie.
+const CLAVE_LOTE = "itmexico-lote";
+let lote = null;
+
+const loteNuevo = () => ({ articulo_id: "", tickets: [], registrado: false });
+const totalPiezas = () => lote.tickets.reduce((s, t) => s + t.piezas, 0);
+const totalSeries = () => lote.tickets.reduce((s, t) => s + t.series.length, 0);
+const siguienteLugar = () => lote.tickets.find(t => t.series.length < t.piezas) || null;
+
+function guardarLote() {
+  try { localStorage.setItem(CLAVE_LOTE, JSON.stringify(lote)); } catch { /* sigue en memoria */ }
+}
+
+function leerLote() {
+  try { lote = JSON.parse(localStorage.getItem(CLAVE_LOTE) || "null"); } catch { lote = null; }
+  if (!lote?.tickets) lote = loteNuevo();
+}
+
+// Una línea pegada de Excel: TICKET, PIEZAS, SUCURSAL, LPN (separados por tabulador, coma o punto y coma)
+function ticketDeLinea(linea) {
+  const c = linea.split(/\t|;|,/).map(x => x.trim());
+  if (!c[0] || /^ticket|^req$/i.test(c[0])) return null;
+  return {
+    ticket: c[0].toUpperCase(),
+    piezas: Math.max(1, Math.round(Number(c[1])) || 1),
+    sucursal: codigoSucursal(c[2] || ""),
+    lpn: (c[3] || "").trim(),
+    series: [],
+    listo: false,
+  };
+}
+
+function abrirLote(recargar) {
+  leerLote();
+  const modal = $("#modal");
+  modal.classList.add("ancho");
+  const articulos = [...estado.articulos].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  modal.innerHTML = `<form method="dialog" id="formLote" class="lote">
+    <h2>Salida por lote (carrito)</h2>
+    <p class="ayuda">Lo que captures aquí se guarda en este navegador hasta que termines el lote, aunque cierres la ventana.</p>
+
+    <h3>1. Artículo y tickets del carrito</h3>
+    <label>Artículo
+      <select id="ltArticulo"><option value="">Elige el artículo…</option>${articulos.map(a =>
+        `<option value="${a.id}">${esc(a.nombre)}${a.sku ? ` · ${esc(a.sku)}` : ""} (stock ${a.stock})</option>`).join("")}</select>
+    </label>
+    <div class="lote-ticket">
+      <label>Ticket <input id="ltTicket" class="mayus" autocomplete="off"></label>
+      <label>Piezas <input id="ltPiezas" type="number" min="1" value="1"></label>
+      <label>Sucursal <input id="ltSucursal" class="mayus" maxlength="5" list="listaSucursales" placeholder="5 o 4"></label>
+      <label>LPN <input id="ltLpn" autocomplete="off"></label>
+      <button class="btn" type="button" id="ltAgregar">Agregar</button>
+    </div>
+    <details class="lote-pegar">
+      <summary>Pegar varios tickets desde Excel</summary>
+      <p class="ayuda">Copia en Excel las columnas <b>Ticket, Piezas, Sucursal, LPN</b> (en ese orden) y pégalas aquí. Piezas, sucursal y LPN pueden ir vacíos.</p>
+      <textarea id="ltPegado" rows="4"></textarea>
+      <button class="btn small" type="button" id="ltPegar">Agregar estos tickets</button>
+    </details>
+
+    <h3>2. Escanear series</h3>
+    <div id="ltSiguiente" class="lectura"></div>
+    <label>Número de serie <input id="ltSerie" autocomplete="off" placeholder="Escanea aquí"></label>
+    <div id="ltAviso" class="lectura" hidden></div>
+
+    <h3>3. Tickets <span id="ltConteo" class="muted"></span></h3>
+    <div id="ltTickets" class="lote-lista"></div>
+
+    <p class="error" id="errLote"></p>
+    <div class="row">
+      <button class="btn" type="button" id="ltDescargar">Descargar Excel</button>
+      <button class="btn" type="button" id="ltNuevo">Terminar / empezar otro lote</button>
+      <button class="btn primary empuja" type="button" id="ltRegistrar"></button>
+      <button class="btn" value="cerrar">Cerrar</button>
+    </div>
+  </form>`;
+  modal.addEventListener("close", () => modal.classList.remove("ancho"), { once: true });
+  modal.showModal();
+
+  const serie = $("#ltSerie");
+  const aviso = (texto, bien) => {
+    $("#ltAviso").hidden = false;
+    $("#ltAviso").className = `lectura ${bien ? "ok" : "mal"}`;
+    $("#ltAviso").innerHTML = texto;
+  };
+  $("#ltArticulo").value = lote.articulo_id;
+
+  const dibujar = () => {
+    const bloqueado = lote.registrado;
+    const sig = siguienteLugar();
+    const total = totalPiezas(), hechas = totalSeries();
+    $("#ltSiguiente").className = `lectura ${sig ? "siguiente" : hechas ? "ok" : ""}`;
+    $("#ltSiguiente").innerHTML = bloqueado ? "Este lote ya se registró. Termina de pasarlo a ServiceNow y luego empieza otro."
+      : sig ? `Siguiente pieza para <b>${esc(sig.ticket)}</b> (${sig.series.length + 1} de ${sig.piezas})${sig.sucursal ? ` · ${esc(sig.sucursal)}` : ""}${sig.lpn ? ` · LPN ${esc(sig.lpn)}` : ""}`
+      : total ? "Todas las piezas tienen serie." : "Agrega los tickets del carrito para empezar.";
+    serie.disabled = bloqueado || !sig;
+    $("#ltConteo").textContent = total ? `· ${lote.tickets.length} tickets · ${hechas} de ${total} series · ${lote.tickets.filter(t => t.listo).length} listos en ServiceNow` : "";
+
+    $("#ltTickets").innerHTML = lote.tickets.map((t, i) => {
+      const s = sucursalPorCodigo(t.sucursal);
+      const completo = t.series.length === t.piezas;
+      return `<div class="lote-hoja ${t.listo ? "listo" : completo ? "completo" : ""}">
+        <div class="row">
+          <b class="lote-req">${esc(t.ticket)}</b> <button class="btn small" type="button" data-copiar="${esc(t.ticket)}">Copiar</button>
+          <span class="pill ${completo ? "recibido" : "camino"}">${t.series.length} de ${t.piezas}</span>
+          ${bloqueado ? "" : `<button class="btn small quitar empuja" type="button" data-quitar-ticket="${i}" title="Quitar ticket">Quitar</button>`}
+        </div>
+        <div class="nota">Sucursal <b>${esc(t.sucursal || "—")}</b>${s?.nombre ? ` · ${esc(s.nombre)}` : t.sucursal ? ' <span class="tarde">no está en el catálogo</span>' : ""}</div>
+        <div class="row">LPN <b>${esc(t.lpn || "—")}</b>${t.lpn ? ` <button class="btn small" type="button" data-copiar="${esc(t.lpn)}">Copiar LPN</button>` : ""}</div>
+        <ol class="lote-series">${t.series.map((x, j) => `<li><code>${esc(x)}</code>
+          <button class="btn small" type="button" data-copiar="${esc(x)}">Copiar</button>
+          ${bloqueado ? "" : `<button class="btn small quitar" type="button" data-quitar-serie="${i}:${j}" title="Quitar para volver a escanear">×</button>`}</li>`).join("")}</ol>
+        <label class="check"><input type="checkbox" data-listo="${i}" ${t.listo ? "checked" : ""}> Ya lo capturé en ServiceNow (LPN en comentarios y series en las tareas)</label>
+      </div>`;
+    }).join("") || '<p class="empty">Sin tickets todavía.</p>';
+
+    const listos = lote.tickets.length && !siguienteLugar();
+    $("#ltRegistrar").disabled = bloqueado || !listos;
+    $("#ltRegistrar").textContent = bloqueado ? "Registrado ✓" : listos ? `Registrar ${hechas} salida(s)` : `Faltan ${total - hechas} serie(s)`;
+    delete $("#ltRegistrar").dataset.confirmar;
+    for (const el of modal.querySelectorAll(".lote-ticket input, .lote-ticket button, #ltArticulo, .lote-pegar textarea, .lote-pegar button")) el.disabled = bloqueado;
+  };
+
+  const agregarTicket = t => {
+    if (!t) return false;
+    if (lote.tickets.some(x => x.ticket === t.ticket)) { aviso(`El ticket <b>${esc(t.ticket)}</b> ya está en el lote.`, false); return false; }
+    lote.tickets.push(t);
+    return true;
+  };
+
+  $("#ltArticulo").addEventListener("change", e => { lote.articulo_id = e.target.value; guardarLote(); });
+
+  const agregarDelFormulario = () => {
+    const ticket = $("#ltTicket").value.trim().toUpperCase();
+    if (!ticket) { $("#ltTicket").focus(); return; }
+    if (agregarTicket({
+      ticket, piezas: Math.max(1, Math.round(Number($("#ltPiezas").value)) || 1),
+      sucursal: codigoSucursal($("#ltSucursal").value), lpn: $("#ltLpn").value.trim(), series: [], listo: false,
+    })) {
+      ["#ltTicket", "#ltSucursal", "#ltLpn"].forEach(id => { $(id).value = ""; });
+      $("#ltPiezas").value = 1;
+      $("#ltAviso").hidden = true;
+      guardarLote();
+      dibujar();
+    }
+    $("#ltTicket").focus();
+  };
+  $("#ltAgregar").addEventListener("click", agregarDelFormulario);
+  // Enter en cualquier campo del ticket lo agrega (el Zebra también da Enter al escanear el LPN)
+  modal.querySelector(".lote-ticket").addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const orden = ["ltTicket", "ltPiezas", "ltSucursal", "ltLpn"];
+    const i = orden.indexOf(e.target.id);
+    if (i >= 0 && i < orden.length - 1 && !e.target.value.trim()) return;
+    if (e.target.id === "ltLpn" || !$("#ltTicket").value.trim()) agregarDelFormulario();
+    else $("#" + orden[i + 1]).focus();
+  });
+
+  $("#ltPegar").addEventListener("click", () => {
+    const lineas = $("#ltPegado").value.split(/\r?\n/);
+    let n = 0;
+    for (const l of lineas) if (agregarTicket(ticketDeLinea(l))) n++;
+    $("#ltPegado").value = "";
+    guardarLote();
+    dibujar();
+    if (n) aviso(`Se agregaron ${n} ticket(s).`, true);
+    serie.focus();
+  });
+
+  // Lectura de una serie
+  serie.addEventListener("keydown", async e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const valor = serie.value.trim().toUpperCase();
+    serie.value = "";
+    if (!valor) return;
+    if (!lote.articulo_id) { pitido(false); aviso("Primero elige el artículo.", false); return $("#ltArticulo").focus(); }
+    const sig = siguienteLugar();
+    if (!sig) return;
+    const repetida = lote.tickets.find(t => t.series.includes(valor));
+    if (repetida) { pitido(false); return aviso(`La serie <b>${esc(valor)}</b> ya está en el ticket ${esc(repetida.ticket)}.`, false); }
+    // ¿Ya salió antes?
+    serie.disabled = true;
+    const { data: previas } = await supabase.from("movimientos").select("ticket, fecha, anulado").eq("serie", valor).eq("tipo", "salida");
+    serie.disabled = false;
+    const salida = (previas || []).find(p => !p.anulado);
+    if (salida) {
+      pitido(false);
+      serie.focus();
+      return aviso(`La serie <b>${esc(valor)}</b> ya salió en el ticket ${esc(salida.ticket || "sin ticket")} (${formatoFecha(salida.fecha)}). Revisa la pieza.`, false);
+    }
+    sig.series.push(valor);
+    guardarLote();
+    pitido(true);
+    aviso(`<b>${esc(valor)}</b> → ticket <b>${esc(sig.ticket)}</b> (${sig.series.length} de ${sig.piezas})`, true);
+    dibujar();
+    serie.focus();
+  });
+
+  // Botones dentro de la lista de tickets
+  $("#ltTickets").addEventListener("click", async e => {
+    const c = e.target.closest("[data-copiar]");
+    if (c) {
+      const ok = await copiar(c.dataset.copiar);
+      const antes = c.textContent;
+      c.textContent = ok ? "Copiado ✓" : "No se pudo";
+      setTimeout(() => { c.textContent = antes; }, 1200);
+      return;
+    }
+    const qs = e.target.closest("[data-quitar-serie]");
+    if (qs) {
+      const [i, j] = qs.dataset.quitarSerie.split(":").map(Number);
+      lote.tickets[i].series.splice(j, 1);
+      guardarLote(); dibujar(); serie.focus();
+      return;
+    }
+    const qt = e.target.closest("[data-quitar-ticket]");
+    if (qt) {
+      if (!qt.dataset.confirmar) { qt.dataset.confirmar = "1"; qt.textContent = "¿Quitar?"; return; }
+      lote.tickets.splice(Number(qt.dataset.quitarTicket), 1);
+      guardarLote(); dibujar();
+    }
+  });
+  $("#ltTickets").addEventListener("change", e => {
+    const l = e.target.closest("[data-listo]");
+    if (!l) return;
+    lote.tickets[Number(l.dataset.listo)].listo = l.checked;
+    guardarLote(); dibujar();
+  });
+
+  $("#ltDescargar").addEventListener("click", () => {
+    try {
+      const art = estado.articulos.find(a => a.id === lote.articulo_id);
+      descargarExcel(`IT Mexico - Lote ${new Date().toLocaleDateString("es-MX").replaceAll("/", "-")}.xlsx`, {
+        Lote: lote.tickets.flatMap(t => Array.from({ length: t.piezas }, (_, j) => ({
+          Ticket: t.ticket, Pieza: `${j + 1} de ${t.piezas}`, Sucursal: t.sucursal || "", LPN: t.lpn || "",
+          Artículo: art?.nombre || "", "Número de serie": t.series[j] || "", "En ServiceNow": t.listo ? "Sí" : "No",
+        }))),
+      });
+    } catch (error) { $("#errLote").textContent = error.message; }
+  });
+
+  $("#ltNuevo").addEventListener("click", e => {
+    const b = e.currentTarget;
+    const pendientes = lote.tickets.length && (!lote.registrado || lote.tickets.some(t => !t.listo));
+    if (pendientes && !b.dataset.confirmar) {
+      b.dataset.confirmar = "1";
+      b.textContent = lote.registrado ? "Hay tickets sin marcar en ServiceNow, ¿borrar?" : "El lote no se ha registrado, ¿borrar?";
+      return;
+    }
+    const articulo = lote.articulo_id;
+    lote = loteNuevo();
+    lote.articulo_id = articulo;
+    guardarLote();
+    delete b.dataset.confirmar;
+    b.textContent = "Terminar / empezar otro lote";
+    $("#ltAviso").hidden = true;
+    dibujar();
+    $("#ltTicket").focus();
+  });
+
+  $("#ltRegistrar").addEventListener("click", async e => {
+    const b = e.currentTarget;
+    $("#errLote").textContent = "";
+    const art = estado.articulos.find(a => a.id === lote.articulo_id);
+    if (!art) { $("#errLote").textContent = "Elige el artículo."; return; }
+    const total = totalSeries();
+    if (!b.dataset.confirmar) {
+      b.dataset.confirmar = "1";
+      b.textContent = art.stock < total ? `El stock es ${art.stock} y salen ${total}: ¿confirmar?` : `Confirmar ${total} salida(s) de ${art.nombre}`;
+      return;
+    }
+    b.disabled = true;
+    const filas = lote.tickets.flatMap(t => t.series.map(s => ({
+      tipo: "salida", articulo_id: art.id, cantidad: 1, serie: s,
+      ticket: t.ticket, sucursal: t.sucursal || null, lpn: t.lpn || null,
+    })));
+    const { error } = await supabase.from("movimientos").insert(filas);
+    if (error) { $("#errLote").textContent = "No se pudo registrar: " + error.message; b.disabled = false; delete b.dataset.confirmar; return; }
+    lote.registrado = true;
+    guardarLote();
+    aviso(`Se registraron ${filas.length} salidas. El stock ya se descontó.`, true);
+    dibujar();
+    recargar();
+  });
+
+  dibujar();
+  (lote.tickets.length ? serie : $("#ltTicket")).focus();
 }
