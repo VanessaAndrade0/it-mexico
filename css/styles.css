@@ -374,3 +374,7 @@ input.contado { width: 80px; height: 32px; text-align: right; }
 .lote .btn.small { height: 28px; padding: 0 9px; }
 .lote .btn.quitar { color: var(--danger); }
 @media (max-width: 640px) { .lote-ticket { grid-template-columns: 1fr 1fr; } }
+
+/* Qué pedir */
+dialog.ancho.extra { width: min(1100px, calc(100% - 32px)); }
+.pedir .row label:not(.check) { min-width: 160px; }

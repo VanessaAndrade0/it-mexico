@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { estado, proveedoresDe, bajoMinimo } from "./estado.js";
-import { esc, $, descargarExcel, pitido } from "./util.js";
+import { esc, $, descargarExcel, pitido, traerTodo } from "./util.js";
 import { numero, opciones, agrupar, tablaGrupos } from "./filtros.js";
 
 const estadoDe = a => a.stock <= 0 ? "Agotado" : a.minimo > 0 && a.stock <= a.minimo ? "Bajo mínimo" : "OK";
@@ -101,6 +101,7 @@ export function iniciarInventario(recargar) {
   $("#btnDescargarInventario").addEventListener("click", descargarInventario);
   $("#btnNuevoArticulo").addEventListener("click", () => abrirArticulo(null, recargar));
   $("#btnConteo").addEventListener("click", () => abrirConteo(recargar));
+  $("#btnPedir").addEventListener("click", abrirPedir);
   $("#tablaArticulos").addEventListener("click", e => {
     const fila = e.target.closest("tr[data-id]");
     if (fila) return abrirArticulo(estado.articulos.find(a => a.id === fila.dataset.id), recargar);
@@ -417,4 +418,136 @@ function abrirConteo(recargar) {
 
   dibujar();
   codigo.focus();
+}
+
+// ---------- Qué pedir: punto de pedido con el consumo real ----------
+// Con las salidas de los últimos meses se calcula cuánto se gasta al día,
+// para cuántos días alcanza lo que hay y cuánto conviene pedir.
+// El tiempo de entrega sale de los trucks ya recibidos (de la orden a la llegada).
+const CLAVE_OBJETIVO = "itmexico-objetivo";
+const DIA = 864e5;
+const diasEntre = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / DIA));
+
+function tiemposDeEntrega() {
+  const porArticulo = {}, todos = [];
+  for (const t of estado.trucks) {
+    if (t.estado !== "recibido" || !t.fecha_orden || !t.fecha) continue;
+    const d = diasEntre(t.fecha_orden, t.fecha);
+    todos.push(d);
+    for (const ra of t.recepcion_articulos || []) (porArticulo[ra.articulo_id] ||= []).push(d);
+  }
+  const prom = l => Math.round(l.reduce((a, b) => a + b, 0) / l.length);
+  return { porArticulo: Object.fromEntries(Object.entries(porArticulo).map(([k, l]) => [k, prom(l)])), general: todos.length ? prom(todos) : 30, conDatos: todos.length };
+}
+
+function enCamino() {
+  const c = {};
+  for (const t of estado.trucks) {
+    if (t.estado === "recibido") continue;
+    for (const ra of t.recepcion_articulos || []) c[ra.articulo_id] = (c[ra.articulo_id] || 0) + ra.cantidad;
+  }
+  return c;
+}
+
+function calcularPedido(salidas, objetivo) {
+  const ahora = Date.now();
+  const entrega = tiemposDeEntrega();
+  const camino = enCamino();
+  const suma = (id, dias) => salidas.filter(m => m.articulo_id === id && ahora - new Date(m.fecha) <= dias * DIA).reduce((t, m) => t + Math.abs(m.cantidad), 0);
+  return estado.articulos.map(a => {
+    const s30 = suma(a.id, 30), s90 = suma(a.id, 90), s180 = suma(a.id, 180);
+    const diario = s90 ? s90 / 90 : s180 / 180; // si no hubo salidas en 90 días se usa el semestre
+    const tarda = entrega.porArticulo[a.id] ?? entrega.general;
+    const viene = camino[a.id] || 0;
+    const alcanza = diario ? Math.floor(a.stock / diario) : null;
+    const puntoPedido = Math.ceil(diario * tarda) + (a.minimo || 0);
+    const sugerido = Math.max(0, Math.ceil(diario * (tarda + objetivo)) + (a.minimo || 0) - a.stock - viene);
+    const disponible = a.stock + viene;
+    const estadoPedido = (diario && disponible <= puntoPedido) || (a.minimo > 0 && disponible <= a.minimo) ? "Pedir ya"
+      : diario && alcanza !== null && alcanza <= tarda + 15 ? "Pronto"
+      : "Bien";
+    return { a, s30, mensual: Math.round(diario * 30 * 10) / 10, alcanza, tarda, propio: a.id in entrega.porArticulo, viene, puntoPedido, sugerido: estadoPedido === "Bien" ? 0 : Math.max(sugerido, a.minimo > 0 && disponible <= a.minimo ? a.minimo - disponible + 1 : 0), estado: estadoPedido };
+  });
+}
+
+async function abrirPedir() {
+  const modal = $("#modal");
+  modal.classList.add("ancho", "extra");
+  modal.innerHTML = `<form method="dialog" class="pedir">
+    <h2>Qué pedir</h2>
+    <p class="ayuda">Se calcula con las salidas reales de los últimos 3 meses. <b>Tarda en llegar</b> es el promedio de días entre la orden y la llegada de los trucks recibidos con ese artículo; si todavía no hay, se usa el promedio de todos los trucks.
+      <b>Sugerido</b> es lo que falta para cubrir el tiempo de entrega más los días que elijas, sin contar lo que ya viene en camino.</p>
+    <div class="row">
+      <label>Quiero tener para
+        <select id="pdObjetivo"><option value="30">1 mes</option><option value="60">2 meses</option><option value="90">3 meses</option></select>
+      </label>
+      <label class="check"><input type="checkbox" id="pdTodos"> Mostrar también los que están bien o no se mueven</label>
+    </div>
+    <div id="pdResumen" class="contador">Calculando…</div>
+    <div class="table-wrap" id="pdTabla"></div>
+    <p class="error" id="errPedir"></p>
+    <div class="row">
+      <button class="btn" type="button" id="pdDescargar">Descargar Excel</button>
+      <button class="btn primary empuja" value="cerrar">Cerrar</button>
+    </div>
+  </form>`;
+  modal.addEventListener("close", () => modal.classList.remove("ancho", "extra"), { once: true });
+  modal.showModal();
+
+  try { $("#pdObjetivo").value = localStorage.getItem(CLAVE_OBJETIVO) || "60"; } catch { /* se queda en 2 meses */ }
+
+  let salidas;
+  try {
+    const desde = new Date(Date.now() - 180 * DIA).toISOString();
+    salidas = (await traerTodo(() => supabase.from("movimientos").select("articulo_id, cantidad, fecha, anulado").eq("tipo", "salida").gte("fecha", desde)))
+      .filter(m => !m.anulado);
+  } catch (error) {
+    $("#pdResumen").textContent = "";
+    $("#errPedir").textContent = "No se pudieron leer las salidas: " + error.message;
+    return;
+  }
+
+  const ORDEN = { "Pedir ya": 0, "Pronto": 1, "Bien": 2 };
+  let filas = [];
+  const dibujar = () => {
+    const objetivo = Number($("#pdObjetivo").value);
+    filas = calcularPedido(salidas, objetivo)
+      .filter(f => $("#pdTodos").checked || f.estado !== "Bien")
+      .sort((x, y) => ORDEN[x.estado] - ORDEN[y.estado] || (x.alcanza ?? 1e9) - (y.alcanza ?? 1e9) || x.a.nombre.localeCompare(y.a.nombre));
+    const ya = filas.filter(f => f.estado === "Pedir ya").length, pronto = filas.filter(f => f.estado === "Pronto").length;
+    $("#pdResumen").innerHTML = `<b>${ya}</b> para pedir ya · <b>${pronto}</b> para pedir pronto · ${numero(salidas.length)} salidas analizadas`;
+    $("#pdTabla").innerHTML = `<table>
+      <thead><tr><th>Artículo</th><th>Proveedor</th><th class="num">Stock</th><th class="num">En camino</th><th class="num">Salidas 30 días</th><th class="num">Prom. al mes</th><th class="num">Le alcanza</th><th class="num">Tarda en llegar</th><th class="num">Sugerido</th><th>Estado</th></tr></thead>
+      <tbody>${filas.length ? filas.map(f => `<tr>
+        <td><b>${esc(f.a.nombre)}</b>${f.a.sku ? `<div class="nota">${esc(f.a.sku)}</div>` : ""}</td>
+        <td>${esc(proveedoresTexto(f.a) || "—")}</td>
+        <td class="num">${f.a.stock}</td>
+        <td class="num">${f.viene || "—"}</td>
+        <td class="num">${f.s30}</td>
+        <td class="num">${f.mensual || "—"}</td>
+        <td class="num">${f.alcanza === null ? "—" : `${numero(f.alcanza)} días`}</td>
+        <td class="num">${f.tarda} días${f.propio ? "" : '<div class="nota">promedio general</div>'}</td>
+        <td class="num"><b>${f.sugerido || "—"}</b></td>
+        <td><span class="pill ${f.estado === "Pedir ya" ? "atrasado" : f.estado === "Pronto" ? "camino" : "recibido"}">${f.estado}</span></td>
+      </tr>`).join("") : `<tr><td colspan="10" class="empty">Nada que pedir por ahora.</td></tr>`}</tbody>
+    </table>`;
+  };
+
+  $("#pdObjetivo").addEventListener("change", e => {
+    try { localStorage.setItem(CLAVE_OBJETIVO, e.target.value); } catch { /* sin almacenamiento */ }
+    dibujar();
+  });
+  $("#pdTodos").addEventListener("change", dibujar);
+  $("#pdDescargar").addEventListener("click", () => {
+    try {
+      descargarExcel(`IT Mexico - Que pedir ${new Date().toLocaleDateString("es-MX").replaceAll("/", "-")}.xlsx`, {
+        "Qué pedir": filas.map(f => ({
+          Estado: f.estado, Proveedor: proveedoresTexto(f.a), SKU: f.a.sku || "", Artículo: f.a.nombre, Stock: f.a.stock, "En camino": f.viene,
+          "Salidas 30 días": f.s30, "Promedio al mes": f.mensual, "Le alcanza (días)": f.alcanza ?? "", "Tarda en llegar (días)": f.tarda,
+          "Punto de pedido": f.puntoPedido, Sugerido: f.sugerido,
+        })),
+      });
+    } catch (error) { $("#errPedir").textContent = error.message; }
+  });
+  dibujar();
 }
