@@ -343,3 +343,15 @@ body[data-rol="lectura"] section[data-view="excel"] h2:has(+ .pasos-excel input[
 
 /* Cuenta pendiente: solo el aviso */
 body[data-rol="pendiente"] :is(#tabs, main > section) { display: none !important; }
+
+/* Conteo físico */
+.conteo-captura { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 10px; align-items: end; }
+.conteo-captura #ctCodigo { font-size: 18px; font-weight: 600; letter-spacing: .5px; }
+.lectura { padding: 8px 12px; border-radius: 8px; font-size: 15px; }
+.lectura.ok { background: #E1F3EA; color: #1D7F55; }
+.lectura.mal { background: var(--danger-soft); color: var(--danger); }
+label.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+input.contado { width: 80px; height: 32px; text-align: right; }
+.dif-mas { color: #1D7F55; }
+.dif-menos { color: var(--danger); }
+@media (max-width: 640px) { .conteo-captura { grid-template-columns: 1fr; } }

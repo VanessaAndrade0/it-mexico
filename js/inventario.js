@@ -100,6 +100,7 @@ export function iniciarInventario(recargar) {
   });
   $("#btnDescargarInventario").addEventListener("click", descargarInventario);
   $("#btnNuevoArticulo").addEventListener("click", () => abrirArticulo(null, recargar));
+  $("#btnConteo").addEventListener("click", () => abrirConteo(recargar));
   $("#tablaArticulos").addEventListener("click", e => {
     const fila = e.target.closest("tr[data-id]");
     if (fila) return abrirArticulo(estado.articulos.find(a => a.id === fila.dataset.id), recargar);
@@ -189,4 +190,245 @@ function abrirArticulo(articulo, recargar) {
     modal.close();
     recargar();
   });
+}
+
+// ---------- Conteo físico con el escáner Zebra ----------
+// El Zebra escribe el código como si fuera teclado y al final da Enter.
+// El conteo se guarda en este navegador mientras se hace, por si se cierra la ventana.
+const CLAVE_CONTEO = "itmexico-conteo";
+let conteo = {};       // id del artículo -> piezas contadas
+let desconocidos = {}; // código que no existe en el inventario -> lecturas
+
+const normal = t => String(t ?? "").trim().toUpperCase();
+
+function guardarConteo() {
+  try { localStorage.setItem(CLAVE_CONTEO, JSON.stringify({ conteo, desconocidos })); } catch { /* sin almacenamiento, sigue en memoria */ }
+}
+
+function leerConteo() {
+  try {
+    const g = JSON.parse(localStorage.getItem(CLAVE_CONTEO) || "null");
+    conteo = g?.conteo || {};
+    desconocidos = g?.desconocidos || {};
+  } catch { conteo = {}; desconocidos = {}; }
+  // si un artículo se eliminó mientras tanto, se quita del conteo
+  for (const id of Object.keys(conteo)) if (!estado.articulos.some(a => a.id === id)) delete conteo[id];
+}
+
+function buscarPorCodigo(codigo) {
+  const c = normal(codigo);
+  if (!c) return null;
+  return estado.articulos.find(a => normal(a.sku) === c) || estado.articulos.find(a => normal(a.nombre) === c) || null;
+}
+
+function sumarLectura(codigo, piezas = 1) {
+  const a = buscarPorCodigo(codigo);
+  if (a) conteo[a.id] = (conteo[a.id] || 0) + piezas;
+  else desconocidos[normal(codigo)] = (desconocidos[normal(codigo)] || 0) + piezas;
+  return a;
+}
+
+// Sonido corto para saber si la lectura entró sin voltear a la pantalla
+let audio;
+function pitido(bien) {
+  try {
+    audio ||= new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = bien ? 880 : 220;
+    g.gain.value = 0.08;
+    o.connect(g).connect(audio.destination);
+    o.start();
+    o.stop(audio.currentTime + (bien ? 0.08 : 0.3));
+  } catch { /* sin sonido */ }
+}
+
+function filasConteo(todos) {
+  const lista = todos ? estado.articulos : estado.articulos.filter(a => a.id in conteo);
+  return lista
+    .map(a => ({ a, contado: conteo[a.id] || 0, dif: (conteo[a.id] || 0) - a.stock }))
+    .sort((x, y) => Math.abs(y.dif) - Math.abs(x.dif) || x.a.nombre.localeCompare(y.a.nombre));
+}
+
+function abrirConteo(recargar) {
+  leerConteo();
+  const modal = $("#modal");
+  modal.classList.add("ancho");
+  modal.innerHTML = `<form method="dialog" id="formConteo">
+    <h2>Conteo físico</h2>
+    <p class="ayuda">Escanea cada pieza con el Zebra: cada lectura suma 1. Si son varias piezas iguales, escribe la cantidad en <b>Piezas</b> y luego escanea una vez.
+      Si el escáner guardó el conteo en Excel, cárgalo y se suma igual. Nada cambia en el inventario hasta que apliques los ajustes.</p>
+    <div class="conteo-captura">
+      <label>Piezas <input id="ctPiezas" type="number" min="1" value="1"></label>
+      <label>Código o SKU <input id="ctCodigo" autocomplete="off" placeholder="Escanea aquí"></label>
+      <label>Excel del escáner <input id="ctArchivo" type="file" accept=".xlsx,.xls,.csv,.txt"></label>
+    </div>
+    <div id="ctUltimo" class="lectura" hidden></div>
+    <label class="check"><input type="checkbox" id="ctTodos"> Mostrar todo el inventario (lo que no se escaneó cuenta como 0)</label>
+    <div id="ctResumen" class="contador"></div>
+    <div class="table-wrap" id="ctTabla"></div>
+    <div id="ctDesconocidos"></div>
+    <p class="error" id="errConteo"></p>
+    <div class="row">
+      <button class="btn" type="button" id="ctDescargar">Descargar reporte</button>
+      <button class="btn" type="button" id="ctReiniciar">Empezar de nuevo</button>
+      <button class="btn primary empuja solo-editor" type="button" id="ctAplicar">Aplicar ajustes</button>
+      <button class="btn" value="cerrar">Cerrar</button>
+    </div>
+  </form>`;
+  modal.addEventListener("close", () => modal.classList.remove("ancho"), { once: true });
+  modal.showModal();
+
+  const codigo = $("#ctCodigo");
+  const aviso = (texto, bien) => {
+    $("#ctUltimo").hidden = false;
+    $("#ctUltimo").className = `lectura ${bien ? "ok" : "mal"}`;
+    $("#ctUltimo").innerHTML = texto;
+  };
+
+  const dibujar = () => {
+    const todos = $("#ctTodos").checked;
+    const filas = filasConteo(todos);
+    const conDif = filas.filter(f => f.dif !== 0);
+    const nd = Object.keys(desconocidos).length;
+    $("#ctResumen").innerHTML = `<b>${numero(Object.keys(conteo).length)}</b> artículos contados · <b>${numero(conDif.length)}</b> con diferencia` +
+      (nd ? ` · <b>${nd}</b> código(s) no encontrados` : "");
+    $("#ctTabla").innerHTML = `<table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Ubicación</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diferencia</th></tr></thead>
+      <tbody>${filas.length ? filas.map(f => `<tr class="${f.dif ? "bajo" : ""}">
+        <td><b>${esc(f.a.nombre)}</b></td>
+        <td>${esc(f.a.sku || "—")}</td>
+        <td>${esc(f.a.ubicacion || "—")}</td>
+        <td class="num">${f.a.stock}</td>
+        <td class="num"><input class="contado" type="number" min="0" value="${f.contado}" data-contado="${f.a.id}"></td>
+        <td class="num"><b class="${f.dif > 0 ? "dif-mas" : f.dif < 0 ? "dif-menos" : ""}">${f.dif > 0 ? "+" : ""}${f.dif}</b></td>
+      </tr>`).join("") : `<tr><td colspan="6" class="empty">Todavía no hay lecturas.</td></tr>`}</tbody>
+    </table>`;
+    $("#ctDesconocidos").innerHTML = nd ? `<div class="alert critico"><b>Códigos que no están en el inventario:</b>
+      ${Object.entries(desconocidos).map(([c, n]) => `${esc(c)} (${n})`).join(", ")}.
+      Revisa que el artículo tenga ese SKU o dalo de alta; estas lecturas no generan ajustes.</div>` : "";
+    $("#ctAplicar").disabled = !conDif.length;
+    $("#ctAplicar").textContent = conDif.length ? `Aplicar ${conDif.length} ajuste(s)` : "Sin diferencias";
+    delete $("#ctAplicar").dataset.confirmar;
+  };
+
+  // Lectura del escáner (o escrita a mano y Enter)
+  codigo.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault(); // que el Enter no cierre la ventana
+    if (!codigo.value.trim()) return;
+    const piezas = Math.max(1, Math.round(Number($("#ctPiezas").value)) || 1);
+    const a = sumarLectura(codigo.value, piezas);
+    guardarConteo();
+    pitido(!!a);
+    aviso(a ? `+${piezas} · <b>${esc(a.nombre)}</b> → llevas ${conteo[a.id]}` : `No existe en el inventario: <b>${esc(normal(codigo.value))}</b>`, !!a);
+    codigo.value = "";
+    $("#ctPiezas").value = 1;
+    dibujar();
+  });
+  $("#ctPiezas").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); codigo.focus(); } });
+
+  // Corregir a mano lo contado
+  $("#ctTabla").addEventListener("change", e => {
+    const input = e.target.closest("[data-contado]");
+    if (!input) return;
+    conteo[input.dataset.contado] = Math.max(0, Math.round(Number(input.value)) || 0);
+    guardarConteo();
+    dibujar();
+    codigo.focus();
+  });
+
+  $("#ctTodos").addEventListener("change", dibujar);
+
+  // Excel del escáner: una lectura por fila, o código en una columna y cantidad en la siguiente
+  $("#ctArchivo").addEventListener("change", async e => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    try {
+      if (!window.XLSX) throw new Error("No se cargó el lector de Excel");
+      const libro = XLSX.read(await archivo.arrayBuffer(), { type: "array" });
+      const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1, defval: "", raw: false });
+      let lecturas = 0, piezas = 0, noEncontradas = 0;
+      for (const fila of filas) {
+        const celdas = fila.map(c => String(c).trim());
+        const i = celdas.findIndex(Boolean);
+        if (i < 0) continue;
+        const cod = celdas[i];
+        if (/^(sku|c[oó]digo|barcode|item|art[ií]culo)$/i.test(cod)) continue; // encabezado
+        const n = Number(celdas[i + 1]);
+        const cant = Number.isInteger(n) && n > 0 ? n : 1;
+        if (!sumarLectura(cod, cant)) noEncontradas++;
+        lecturas++;
+        piezas += cant;
+      }
+      guardarConteo();
+      aviso(`Se cargó <b>${esc(archivo.name)}</b>: ${numero(lecturas)} lecturas, ${numero(piezas)} piezas${noEncontradas ? `, ${noEncontradas} sin encontrar` : ""}.`, !noEncontradas);
+      dibujar();
+    } catch (error) {
+      aviso(`No se pudo leer el archivo: ${esc(error.message)}`, false);
+    }
+    e.target.value = "";
+    codigo.focus();
+  });
+
+  $("#ctDescargar").addEventListener("click", () => {
+    try {
+      const fecha = new Date().toLocaleDateString("es-MX").replaceAll("/", "-");
+      descargarExcel(`IT Mexico - Conteo fisico ${fecha}.xlsx`, {
+        Conteo: filasConteo($("#ctTodos").checked).map(f => ({
+          SKU: f.a.sku || "", Artículo: f.a.nombre, Ubicación: f.a.ubicacion || "", Sistema: f.a.stock, Contado: f.contado, Diferencia: f.dif,
+        })),
+        "No encontrados": Object.entries(desconocidos).map(([c, n]) => ({ Código: c, Lecturas: n })),
+      });
+    } catch (error) {
+      $("#errConteo").textContent = error.message;
+    }
+  });
+
+  $("#ctReiniciar").addEventListener("click", e => {
+    const boton = e.currentTarget;
+    if (!boton.dataset.confirmar) { boton.dataset.confirmar = "1"; boton.textContent = "Confirmar: borrar lecturas"; return; }
+    conteo = {}; desconocidos = {};
+    guardarConteo();
+    delete boton.dataset.confirmar;
+    boton.textContent = "Empezar de nuevo";
+    $("#ctUltimo").hidden = true;
+    dibujar();
+    codigo.focus();
+  });
+
+  // Ajustes: la diferencia se registra como movimiento de tipo "ajuste" y el stock queda igual a lo contado
+  $("#ctAplicar").addEventListener("click", async e => {
+    const boton = e.currentTarget;
+    const todos = $("#ctTodos").checked;
+    if (!boton.dataset.confirmar) {
+      boton.dataset.confirmar = "1";
+      boton.textContent = todos ? "Confirmar (incluye lo no escaneado en 0)" : "Confirmar ajustes";
+      return;
+    }
+    boton.disabled = true;
+    $("#errConteo").textContent = "";
+    // Se vuelve a leer el stock por si alguien registró un movimiento mientras se contaba
+    const ids = (todos ? estado.articulos : estado.articulos.filter(a => a.id in conteo)).map(a => a.id);
+    const { data: actuales, error: errLeer } = await supabase.from("articulos").select("id, stock").in("id", ids);
+    if (errLeer) { $("#errConteo").textContent = "No se pudo leer el stock actual."; boton.disabled = false; return; }
+    const fecha = new Date().toLocaleDateString("es-MX");
+    const ajustes = actuales
+      .map(a => ({ a, contado: conteo[a.id] || 0 }))
+      .filter(x => x.contado !== x.a.stock)
+      .map(x => ({
+        tipo: "ajuste", articulo_id: x.a.id, cantidad: x.contado - x.a.stock,
+        nota: `Conteo físico ${fecha}: sistema ${x.a.stock}, contado ${x.contado}`,
+      }));
+    if (ajustes.length) {
+      const { error } = await supabase.from("movimientos").insert(ajustes);
+      if (error) { $("#errConteo").textContent = "No se pudieron registrar los ajustes: " + error.message; boton.disabled = false; return; }
+    }
+    conteo = {}; desconocidos = {};
+    guardarConteo();
+    modal.close();
+    recargar();
+  });
+
+  dibujar();
+  codigo.focus();
 }
