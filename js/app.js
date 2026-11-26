@@ -68,9 +68,6 @@ async function abrirUsuarios() {
   modal.classList.add("ancho");
   modal.innerHTML = `<form method="dialog" id="formUsuarios">
     <h2>Usuarios</h2>
-    <p class="ayuda">Las cuentas nuevas entran como <b>Pendiente</b> y no ven nada hasta que les asignes un rol.
-      <b>Editor</b> registra y edita pero no elimina. <b>Solo lectura</b> únicamente consulta.
-      Para agregar a alguien, invítalo desde Supabase (Authentication → Users → Invite user) y luego dale rol aquí.</p>
     ${error ? `<p class="error">No se pudo cargar: ${esc(error.message)}</p>` : `
     <div class="table-wrap"><table>
       <thead><tr><th>Correo</th><th>Rol</th><th>Desde</th></tr></thead>
