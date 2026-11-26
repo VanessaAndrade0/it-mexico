@@ -408,3 +408,14 @@ tr.elegido td { background: var(--accent-soft); }
 .lote-oper summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .lote-oper tr.hecho td { color: var(--muted); }
 .lpn-input { height: 30px; flex: 1; min-width: 120px; }
+
+/* Tiempo real: quién está conectado y avisos */
+.conectados { display: flex; gap: 6px; flex-wrap: wrap; }
+.en-linea { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,.14); color: #fff; border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 13px; font-weight: 600; }
+.en-linea .punto { width: 8px; height: 8px; border-radius: 50%; background: #3DDC84; box-shadow: 0 0 0 2px rgba(61,220,132,.3); }
+.en-linea .donde { font-weight: 400; opacity: .8; }
+.avisos { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; max-width: min(380px, calc(100% - 32px)); }
+.aviso { background: var(--text); color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); animation: entra .25s ease-out; transition: opacity .4s, transform .4s; }
+.aviso.sale { opacity: 0; transform: translateY(8px); }
+@keyframes entra { from { opacity: 0; transform: translateY(8px); } }
+@media (max-width: 640px) { .en-linea .donde { display: none; } }

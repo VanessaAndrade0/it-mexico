@@ -11,12 +11,14 @@ import { iniciarSucursales, renderSucursales } from "./sucursales.js";
 import { iniciarAgenda, renderAgenda } from "./agenda.js";
 import { iniciarPendientes, renderPendientes } from "./pendientes.js";
 
+let miCorreo = "";
 const ROLES = { admin: "Admin", editor: "Editor", lectura: "Solo lectura", pendiente: "Pendiente" };
 
 // Trae todo de Supabase y vuelve a dibujar las pantallas
 async function recargar() {
   await cargarRol();
   if (estado.rol === "pendiente") return; // sin permiso no se pide nada
+  conectarTiempoReal();
 
   const [art, prov, rel, mov, trk, suc] = await Promise.all([
     supabase.from("articulos").select("*").order("nombre"),
@@ -46,6 +48,7 @@ async function recargar() {
 async function cargarRol() {
   const { data: sesion } = await supabase.auth.getUser();
   const email = (sesion?.user?.email || "").toLowerCase();
+  miCorreo = email;
   const { data, error } = await supabase.from("perfiles").select("rol").eq("email", email).maybeSingle();
   // Si todavía no se ejecuta sql/10_seguridad.sql, la app sigue funcionando como antes
   estado.rol = error ? "admin" : (data?.rol || "pendiente");
@@ -154,6 +157,7 @@ $("#tabs").addEventListener("click", e => {
   document.querySelectorAll("main section").forEach(s => s.hidden = s.dataset.view !== boton.dataset.tab);
   boton.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
   window.scrollTo({ top: 0 });
+  anunciarPresencia();
 });
 
 $("#btnUsuarios").addEventListener("click", abrirUsuarios);
@@ -167,3 +171,104 @@ seguro("Sucursales", () => iniciarSucursales(recargar));
 seguro("Agenda", () => iniciarAgenda(recargar));
 seguro("Pendientes", iniciarPendientes);
 iniciarAuth(recargar);
+
+// ---------- Tiempo real: cambios de los demás y quién está conectado ----------
+// Supabase avisa cuando alguien guarda algo; la pantalla se vuelve a cargar sola
+// y sale un aviso abajo. También se ve quién tiene la app abierta y en qué pestaña.
+let canal = null;
+let esperaRecarga = null;
+
+const PESTANAS = { inventario: "Inventario", movimientos: "Movimientos", pendientes: "Pendientes", trucks: "Trucks", sucursales: "Sucursales", proveedores: "Proveedores", excel: "Excel", agenda: "Agenda" };
+const nombreCorto = correo => {
+  const base = String(correo || "").split("@")[0].split(/[._-]/)[0];
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : "Alguien";
+};
+const pestanaActual = () => document.querySelector("#tabs button.active")?.dataset.tab || "inventario";
+
+function conectarTiempoReal() {
+  if (canal || !miCorreo) return;
+  canal = supabase.channel("itmexico", { config: { presence: { key: miCorreo } } });
+
+  canal.on("postgres_changes", { event: "*", schema: "public" }, cambio => {
+    if (["bitacora", "perfiles", "importaciones"].includes(cambio.table)) return;
+    const r = cambio.new && Object.keys(cambio.new).length ? cambio.new : cambio.old || {};
+    const quien = r.registrado_por || r.editado_por || r.recibido_por || r.creado_por || "";
+    if (quien.toLowerCase() !== miCorreo) {
+      const texto = describirCambio(cambio, r, quien);
+      if (texto) avisar(texto);
+    }
+    // Varios cambios seguidos (por ejemplo un lote de 20 salidas) se juntan en una sola recarga
+    clearTimeout(esperaRecarga);
+    esperaRecarga = setTimeout(recargarEnSilencio, 1200);
+  });
+
+  canal.on("presence", { event: "sync" }, dibujarConectados);
+
+  canal.subscribe(estadoCanal => {
+    if (estadoCanal === "SUBSCRIBED") anunciarPresencia();
+  });
+}
+
+async function recargarEnSilencio() {
+  // Si alguien está escribiendo en una ventana, se espera a que la cierre para no moverle la pantalla
+  if ($("#modal").open && document.activeElement?.closest("#modal")) {
+    esperaRecarga = setTimeout(recargarEnSilencio, 3000);
+    return;
+  }
+  await recargar();
+}
+
+function anunciarPresencia() {
+  if (!canal) return;
+  canal.track({ correo: miCorreo, pestana: pestanaActual(), desde: new Date().toISOString() }).catch(() => {});
+}
+
+function dibujarConectados() {
+  const estadoPresencia = canal.presenceState();
+  const otros = Object.entries(estadoPresencia)
+    .filter(([correo]) => correo !== miCorreo)
+    .map(([correo, sesiones]) => ({ correo, pestana: sesiones.at(-1)?.pestana }));
+  $("#enLinea").innerHTML = otros.map(o => `<span class="en-linea" title="${esc(o.correo)} · en ${esc(PESTANAS[o.pestana] || o.pestana || "la app")}">
+      <span class="punto"></span>${esc(nombreCorto(o.correo))}<span class="donde">· ${esc(PESTANAS[o.pestana] || "")}</span></span>`).join("");
+}
+
+function describirCambio({ table, eventType }, r, quien) {
+  const q = nombreCorto(quien);
+  const art = id => estado.articulos.find(a => a.id === id)?.nombre || "un artículo";
+  if (table === "movimientos" && eventType === "INSERT") {
+    const tipo = { salida: "una salida", entrada: "una entrada", ajuste: "un ajuste" }[r.tipo] || "un movimiento";
+    return `<b>${esc(q)}</b> registró ${tipo} de ${Math.abs(r.cantidad || 0)} ${esc(art(r.articulo_id))}${r.sucursal ? ` para ${esc(r.sucursal)}` : ""}`;
+  }
+  if (table === "movimientos" && eventType === "UPDATE") return r.anulado ? `<b>${esc(q)}</b> anuló un movimiento` : `<b>${esc(q)}</b> editó un movimiento`;
+  if (table === "articulos") {
+    if (eventType === "INSERT") return `<b>${esc(q)}</b> agregó el artículo ${esc(r.nombre || "")}`;
+    if (eventType === "DELETE") return "Se eliminó un artículo";
+    return ""; // los cambios de stock ya se avisan con el movimiento
+  }
+  if (table === "recepciones") {
+    if (eventType === "INSERT") return `<b>${esc(q)}</b> registró un truck${r.orden_compra ? ` (PO ${esc(r.orden_compra)})` : ""}`;
+    if (eventType === "UPDATE" && r.estado === "recibido") return `<b>${esc(nombreCorto(r.recibido_por || quien))}</b> recibió un truck${r.orden_compra ? ` (PO ${esc(r.orden_compra)})` : ""}`;
+    if (eventType === "DELETE") return "Se eliminó un truck";
+    return "";
+  }
+  if (table === "tareas") {
+    if (eventType === "INSERT") return `<b>${esc(q)}</b> agregó la tarea “${esc(r.titulo || "")}”`;
+    if (eventType === "UPDATE" && r.estado === "hecho") return `Se terminó la tarea “${esc(r.titulo || "")}”`;
+    return "";
+  }
+  if (table === "tarea_comentarios" && eventType === "INSERT") return `<b>${esc(q)}</b> dejó un recado en una tarea`;
+  if (table === "eventos" && eventType === "INSERT") return `<b>${esc(q)}</b> agregó “${esc(r.titulo || "")}” al calendario`;
+  if (table === "sucursales" && eventType === "INSERT") return `<b>${esc(q)}</b> agregó la sucursal ${esc(r.codigo || "")}`;
+  if (table === "proveedores" && eventType === "INSERT") return `<b>${esc(q)}</b> agregó el proveedor ${esc(r.nombre || "")}`;
+  return "";
+}
+
+function avisar(html) {
+  const caja = $("#avisos");
+  const aviso = document.createElement("div");
+  aviso.className = "aviso";
+  aviso.innerHTML = html;
+  caja.append(aviso);
+  while (caja.children.length > 3) caja.firstElementChild.remove();
+  setTimeout(() => { aviso.classList.add("sale"); setTimeout(() => aviso.remove(), 400); }, 6000);
+}
