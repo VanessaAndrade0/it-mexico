@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IT Mexico</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=2026112602">
 </head>
 <body>
   <!-- Pantalla de inicio de sesión -->
@@ -439,6 +439,27 @@
   <dialog id="modal"></dialog>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <!-- Versión: al publicar cambios se sube este número para que el navegador no use archivos viejos -->
+  <script type="importmap">
+  {
+    "imports": {
+      "./js/app.js": "./js/app.js?v=2026112602",
+      "./js/agenda.js": "./js/agenda.js?v=2026112602",
+      "./js/auth.js": "./js/auth.js?v=2026112602",
+      "./js/estado.js": "./js/estado.js?v=2026112602",
+      "./js/excel.js": "./js/excel.js?v=2026112602",
+      "./js/filtros.js": "./js/filtros.js?v=2026112602",
+      "./js/inventario.js": "./js/inventario.js?v=2026112602",
+      "./js/movimientos.js": "./js/movimientos.js?v=2026112602",
+      "./js/pendientes.js": "./js/pendientes.js?v=2026112602",
+      "./js/proveedores.js": "./js/proveedores.js?v=2026112602",
+      "./js/sucursales.js": "./js/sucursales.js?v=2026112602",
+      "./js/supabase.js": "./js/supabase.js?v=2026112602",
+      "./js/truck.js": "./js/truck.js?v=2026112602",
+      "./js/util.js": "./js/util.js?v=2026112602"
+    }
+  }
+  </script>
+  <script type="module" src="./js/app.js?v=2026112602"></script>
 </body>
 </html>
