@@ -378,3 +378,33 @@ input.contado { width: 80px; height: 32px; text-align: right; }
 /* Qué pedir */
 dialog.ancho.extra { width: min(1100px, calc(100% - 32px)); }
 .pedir .row label:not(.check) { min-width: 160px; }
+
+/* Inicio de sesión: olvidé mi contraseña y reglas */
+.enlace { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; justify-self: start; text-decoration: underline; }
+.reglas { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
+.reglas li::before { content: "○ "; }
+.reglas li.ok { color: #1D7F55; }
+.reglas li.ok::before { content: "✓ "; }
+.login-card .ok-msg { color: #1D7F55; }
+
+/* Pendientes de ServiceNow */
+.hoja { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 320px; background: var(--surface); }
+.hoja-tabla { border-collapse: collapse; width: 100%; font-size: 13px; }
+.hoja-tabla th, .hoja-tabla td { border: 1px solid var(--line); padding: 4px 8px; height: 26px; white-space: nowrap; text-align: left; }
+.hoja-tabla thead th { background: var(--surface-2); position: sticky; top: 0; font-weight: 600; }
+.hoja-tabla tbody th { background: var(--surface-2); color: var(--muted); width: 34px; text-align: center; font-weight: 400; }
+#pnPegar { position: absolute; inset: 0; width: 100%; height: 100%; resize: none; border: 0; background: transparent; color: transparent; caret-color: transparent; cursor: cell; padding: 40px 0 0 50px; font-size: 14px; }
+#pnPegar::placeholder { color: var(--accent); font-weight: 600; }
+#pnPegar:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+#pnPegar:focus::placeholder { color: var(--muted); }
+.pn-filtros { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.pn-resumen { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 12px 0; }
+.pn-tarjeta { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-size: 14px; }
+.pn-tarjeta.ok { border-left-color: #1D7F55; }
+.pn-tarjeta.medio { border-left-color: var(--warn); }
+.pn-tarjeta.nada { border-left-color: var(--danger); }
+.pn-tarjeta select { width: 100%; }
+tr.elegido td { background: var(--accent-soft); }
+.lote-oper summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.lote-oper tr.hecho td { color: var(--muted); }
+.lpn-input { height: 30px; flex: 1; min-width: 120px; }

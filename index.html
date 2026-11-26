@@ -10,7 +10,8 @@
 <body>
   <!-- Pantalla de inicio de sesión -->
   <section id="login" class="login" hidden>
-    <form id="loginForm" class="card login-card">
+    <!-- Entrar -->
+    <form id="loginForm" class="card login-card" novalidate>
       <h1>IT Mexico</h1>
       <p class="muted">Inventario de soporte TI</p>
       <label for="loginEmail">Correo</label>
@@ -18,7 +19,33 @@
       <label for="loginPass">Contraseña</label>
       <input id="loginPass" type="password" required autocomplete="current-password">
       <button class="btn primary" type="submit">Entrar</button>
+      <button class="enlace" type="button" id="btnOlvide">¿Olvidaste tu contraseña?</button>
       <p id="loginError" class="error"></p>
+    </form>
+
+    <!-- Olvidé mi contraseña -->
+    <form id="olvideForm" class="card login-card" novalidate hidden>
+      <h1>IT Mexico</h1>
+      <p class="muted">Escribe tu correo y te llegará un enlace para crear una contraseña nueva. Si no lo ves en unos minutos, revisa el correo no deseado.</p>
+      <label for="olvideEmail">Correo</label>
+      <input id="olvideEmail" type="email" required autocomplete="username">
+      <button class="btn primary" type="submit" id="btnEnviarEnlace">Enviar enlace</button>
+      <button class="enlace" type="button" id="btnVolverLogin">‹ Volver a entrar</button>
+      <p id="olvideMensaje" class="muted"></p>
+      <p id="olvideError" class="error"></p>
+    </form>
+
+    <!-- Contraseña nueva (al abrir el enlace del correo o la invitación) -->
+    <form id="nuevaForm" class="card login-card" novalidate hidden>
+      <h1>IT Mexico</h1>
+      <p class="muted" id="nuevaTitulo">Crea tu contraseña nueva.</p>
+      <label for="nuevaPass">Contraseña nueva</label>
+      <input id="nuevaPass" type="password" required autocomplete="new-password">
+      <label for="nuevaPass2">Repítela</label>
+      <input id="nuevaPass2" type="password" required autocomplete="new-password">
+      <ul class="reglas" id="nuevaReglas"></ul>
+      <button class="btn primary" type="submit">Guardar contraseña</button>
+      <p id="nuevaError" class="error"></p>
     </form>
   </section>
 
@@ -27,11 +54,12 @@
     <header class="band">
       <div class="wrap header-row">
         <h1>IT Mexico</h1>
-        <div class="user"><span id="userEmail"></span><span id="rolTag" class="rol-tag"></span><button class="btn small ghost solo-admin" id="btnUsuarios">Usuarios <span class="badge" id="usuariosBadge" hidden></span></button><button class="btn small ghost" id="btnLogout">Salir</button></div>
+        <div class="user"><span id="userEmail"></span><span id="rolTag" class="rol-tag"></span><button class="btn small ghost solo-admin" id="btnUsuarios">Usuarios <span class="badge" id="usuariosBadge" hidden></span></button><button class="btn small ghost" id="btnContrasena">Contraseña</button><button class="btn small ghost" id="btnLogout">Salir</button></div>
       </div>
       <nav class="wrap tabs" id="tabs">
         <button data-tab="inventario" class="active">Inventario <span class="badge" id="lowBadge" hidden></span></button>
         <button data-tab="movimientos">Movimientos</button>
+        <button data-tab="pendientes">Pendientes</button>
         <button data-tab="trucks">Trucks <span class="badge info" id="trucksBadge" hidden></span></button>
         <button data-tab="sucursales">Sucursales</button>
         <button data-tab="proveedores">Proveedores</button>
@@ -170,6 +198,61 @@
       </section>
 
       <!-- TRUCKS -->
+      <section data-view="pendientes" hidden>
+        <div class="section-head">
+          <h2>Pendientes de ServiceNow</h2>
+          <div class="row">
+            <button class="btn" id="btnVerCarrito">Ver carrito</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Pegar la lista</h3>
+          <p class="ayuda">En ServiceNow selecciona los renglones de la lista, del primer REQ al último, y copia con <b>Ctrl + C</b>.
+            Luego haz clic en la hoja de abajo y pega con <b>Ctrl + V</b>: cada dato se acomoda solo en su columna. Para actualizar, vuelve a pegar la lista del día.
+            Los nombres de las personas no se guardan.</p>
+          <label class="check"><input type="checkbox" id="pnCompleta" checked> Es mi lista completa de abiertos: los que ya no aparecen se quitan porque ya se cerraron</label>
+          <div class="hoja">
+            <div id="pnHojaTabla"></div>
+            <textarea id="pnPegar" aria-label="Pega aquí la lista de ServiceNow" placeholder="Haz clic aquí y pega con Ctrl + V"></textarea>
+          </div>
+          <div id="pnMensaje" class="lectura" hidden></div>
+          <p class="muted" id="pnActualizado"></p>
+        </div>
+
+        <div class="card">
+          <div class="filtros pn-filtros">
+            <label>Buscar <input id="pnBuscar" class="mayus" placeholder="REQ, RITM o SCTASK"></label>
+            <label>Artículo <select id="pnArticulo"></select></label>
+            <label>Sucursal <select id="pnSucursal"></select></label>
+            <label>Desde <input id="pnDesde" type="date"></label>
+            <label>Hasta <input id="pnHasta" type="date"></label>
+            <label>Orden
+              <select id="pnOrden"><option value="viejo">Más viejo primero</option><option value="nuevo">Más nuevo primero</option></select>
+            </label>
+            <label>Mostrar
+              <select id="pnMostrar">
+                <option value="">Todos</option>
+                <option value="alcanza">Los que alcanzan</option>
+                <option value="no">Los que no alcanzan</option>
+                <option value="carrito">Los que están en el carrito</option>
+                <option value="sin">Sin ligar a un artículo</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <span id="pnContador" class="contador"></span>
+            <button class="btn small" type="button" id="pnLimpiar">Quitar filtros</button>
+            <button class="btn small" type="button" id="pnDescargar">Descargar lo que se ve</button>
+            <button class="btn small danger" type="button" id="pnVaciar">Vaciar lista</button>
+            <button class="btn primary empuja solo-editor" type="button" id="pnMandar" disabled>Mandar al carrito</button>
+          </div>
+        </div>
+
+        <div id="pnResumen" class="pn-resumen"></div>
+        <div class="table-wrap" id="pnTabla"></div>
+      </section>
+
       <section data-view="trucks" hidden>
         <div class="section-head">
           <h2>Trucks</h2>

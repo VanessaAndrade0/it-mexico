@@ -204,7 +204,10 @@ function infoSucursal() {
     : "No está en el catálogo de sucursales";
 }
 
+let recargarApp = () => {};
+
 export function iniciarMovimientos(recargar) {
+  recargarApp = recargar;
   $("#movSucursal").addEventListener("input", infoSucursal);
   $("#btnLote").addEventListener("click", () => abrirLote(recargar));
   // Filtros del historial
@@ -409,6 +412,14 @@ function abrirLote(recargar) {
     <h3>3. Tickets <span id="ltConteo" class="muted"></span></h3>
     <div id="ltTickets" class="lote-lista"></div>
 
+    <details class="lote-oper" id="ltOper">
+      <summary>Lista para hacer los LPN en OPER1</summary>
+      <p class="ayuda">Una caja por sucursal para este material. En OPER1: nombre ↵ código de 4 ↵ etiquetas ↵ <b>B</b> ↵ <b>Y</b> ↵ <b>N</b>.
+        Al escanear el LPN en un ticket, los demás tickets de esa sucursal toman el mismo.</p>
+      <label>Nombre en OPER1 (máx. 8) <input id="ltOperNombre" maxlength="8" class="mayus"></label>
+      <div class="table-wrap" id="ltOperLista"></div>
+    </details>
+
     <p class="error" id="errLote"></p>
     <div class="row">
       <button class="btn" type="button" id="ltDescargar">Descargar Excel</button>
@@ -449,13 +460,17 @@ function abrirLote(recargar) {
           ${bloqueado ? "" : `<button class="btn small quitar empuja" type="button" data-quitar-ticket="${i}" title="Quitar ticket">Quitar</button>`}
         </div>
         <div class="nota">Sucursal <b>${esc(t.sucursal || "—")}</b>${s?.nombre ? ` · ${esc(s.nombre)}` : t.sucursal ? ' <span class="tarde">no está en el catálogo</span>' : ""}</div>
-        <div class="row">LPN <b>${esc(t.lpn || "—")}</b>${t.lpn ? ` <button class="btn small" type="button" data-copiar="${esc(t.lpn)}">Copiar LPN</button>` : ""}</div>
+        ${t.ritm ? `<div class="row">RITM <b>${esc(t.ritm)}</b> <button class="btn small" type="button" data-copiar="${esc(t.ritm)}">Copiar</button></div>` : ""}
+        ${t.sctask ? `<div class="row">Tarea <b>${esc(t.sctask)}</b> <button class="btn small" type="button" data-copiar="${esc(t.sctask)}">Copiar</button></div>` : ""}
+        <div class="row">LPN ${bloqueado ? `<b>${esc(t.lpn || "—")}</b>` : `<input class="lpn-input" data-lpn="${i}" value="${esc(t.lpn || "")}" placeholder="Escanea el LPN" autocomplete="off">`}
+          ${t.lpn ? `<button class="btn small" type="button" data-copiar="${esc(t.lpn)}">Copiar LPN</button>` : ""}</div>
         <ol class="lote-series">${t.series.map((x, j) => `<li><code>${esc(x)}</code>
           <button class="btn small" type="button" data-copiar="${esc(x)}">Copiar</button>
           ${bloqueado ? "" : `<button class="btn small quitar" type="button" data-quitar-serie="${i}:${j}" title="Quitar para volver a escanear">×</button>`}</li>`).join("")}</ol>
         <label class="check"><input type="checkbox" data-listo="${i}" ${t.listo ? "checked" : ""}> Ya lo capturé en ServiceNow (LPN en comentarios y series en las tareas)</label>
       </div>`;
     }).join("") || '<p class="empty">Sin tickets todavía.</p>';
+    dibujarOper();
 
     const listos = lote.tickets.length && !siguienteLugar();
     $("#ltRegistrar").disabled = bloqueado || !listos;
@@ -464,9 +479,32 @@ function abrirLote(recargar) {
     for (const el of modal.querySelectorAll(".lote-ticket input, .lote-ticket button, #ltArticulo, .lote-pegar textarea, .lote-pegar button")) el.disabled = bloqueado;
   };
 
+  // Lista para hacer las etiquetas en OPER1: una caja por sucursal para este material
+  const dibujarOper = () => {
+    const art = estado.articulos.find(a => a.id === lote.articulo_id);
+    const porSucursal = {};
+    for (const t of lote.tickets) (porSucursal[t.sucursal || "—"] ||= []).push(t);
+    const grupos = Object.entries(porSucursal);
+    $("#ltOperNombre").value = nombreOper(art);
+    $("#ltOperLista").innerHTML = grupos.length ? `<table>
+      <thead><tr><th>Nombre</th><th>Código de 4</th><th class="num">Etiquetas</th><th>Sucursal</th><th>Tickets</th><th>LPN</th></tr></thead>
+      <tbody>${grupos.map(([suc, lista]) => {
+        const s = sucursalPorCodigo(suc);
+        const lpns = [...new Set(lista.map(t => t.lpn).filter(Boolean))];
+        return `<tr class="${lpns.length ? "hecho" : ""}">
+          <td><code>${esc(nombreOper(art))}</code></td>
+          <td><b>${esc(s?.codigo_corto || "Falta")}</b></td>
+          <td class="num">1</td>
+          <td>${esc(suc)}${s?.nombre ? `<div class="nota">${esc(s.nombre)}</div>` : ""}</td>
+          <td>${lista.map(t => esc(t.ticket)).join("<br>")}</td>
+          <td>${lpns.length ? lpns.map(esc).join("<br>") : '<span class="muted">pendiente</span>'}</td>
+        </tr>`;
+      }).join("")}</tbody></table>` : '<p class="empty">Agrega tickets para ver la lista.</p>';
+  };
+
   const agregarTicket = t => {
     if (!t) return false;
-    if (lote.tickets.some(x => x.ticket === t.ticket)) { aviso(`El ticket <b>${esc(t.ticket)}</b> ya está en el lote.`, false); return false; }
+    if (lote.tickets.some(x => (t.sctask && x.sctask === t.sctask) || (!t.sctask && !x.sctask && x.ticket === t.ticket))) { aviso(`El ticket <b>${esc(t.ticket)}</b> ya está en el lote.`, false); return false; }
     lote.tickets.push(t);
     return true;
   };
@@ -565,6 +603,36 @@ function abrirLote(recargar) {
       guardarLote(); dibujar();
     }
   });
+  // LPN escrito o escaneado en la tarjeta. Si otros tickets de la misma sucursal no tienen LPN, van en la misma caja.
+  const guardarLpn = input => {
+    const i = Number(input.dataset.lpn);
+    const valor = input.value.trim();
+    const t = lote.tickets[i];
+    if (t.lpn === valor) return false;
+    t.lpn = valor;
+    if (valor) for (const x of lote.tickets) if (x !== t && !x.lpn && x.sucursal && x.sucursal === t.sucursal) x.lpn = valor;
+    guardarLote();
+    return true;
+  };
+  $("#ltTickets").addEventListener("keydown", e => {
+    const input = e.target.closest("[data-lpn]");
+    if (!input || e.key !== "Enter") return;
+    e.preventDefault();
+    guardarLpn(input);
+    dibujar();
+    const sig = modal.querySelector(".lpn-input:placeholder-shown");
+    (sig || serie).focus();
+  });
+  $("#ltTickets").addEventListener("focusout", e => {
+    const input = e.target.closest("[data-lpn]");
+    if (input && guardarLpn(input)) dibujar();
+  });
+  $("#ltOperNombre").addEventListener("change", e => {
+    const art = estado.articulos.find(a => a.id === lote.articulo_id);
+    if (art) guardarNombreOper(art, e.target.value);
+    dibujar();
+  });
+
   $("#ltTickets").addEventListener("change", e => {
     const l = e.target.closest("[data-listo]");
     if (!l) return;
@@ -618,6 +686,7 @@ function abrirLote(recargar) {
     const filas = lote.tickets.flatMap(t => t.series.map(s => ({
       tipo: "salida", articulo_id: art.id, cantidad: 1, serie: s,
       ticket: t.ticket, sucursal: t.sucursal || null, lpn: t.lpn || null,
+      nota: [t.ritm, t.sctask].filter(Boolean).join(" · ") || null,
     })));
     const { error } = await supabase.from("movimientos").insert(filas);
     if (error) { $("#errLote").textContent = "No se pudo registrar: " + error.message; b.disabled = false; delete b.dataset.confirmar; return; }
@@ -630,4 +699,48 @@ function abrirLote(recargar) {
 
   dibujar();
   (lote.tickets.length ? serie : $("#ltTicket")).focus();
+}
+
+// Nombre corto (máx. 8) que se escribe en OPER1 para cada artículo; se recuerda en este navegador
+const CLAVE_OPER = "itmexico-nombres-oper";
+function nombresOper() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_OPER) || "{}"); } catch { return {}; }
+}
+function nombreOper(art) {
+  if (!art) return "";
+  return nombresOper()[art.id] || String(art.sku || art.nombre).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+function guardarNombreOper(art, nombre) {
+  const todos = nombresOper();
+  todos[art.id] = String(nombre).toUpperCase().replace(/\s/g, "").slice(0, 8);
+  try { localStorage.setItem(CLAVE_OPER, JSON.stringify(todos)); } catch { /* sin almacenamiento */ }
+}
+
+// Desde Pendientes: agrega tickets al carrito. Regresa cuántos entraron o un mensaje de por qué no.
+export function agregarAlCarrito(articuloId, tickets) {
+  leerLote();
+  if (lote.registrado) return { error: "El carrito actual ya se registró. Ábrelo y dale a “Terminar / empezar otro lote” primero." };
+  if (lote.tickets.length && lote.articulo_id && lote.articulo_id !== articuloId) {
+    const actual = estado.articulos.find(a => a.id === lote.articulo_id);
+    return { error: `El carrito tiene tickets de ${actual?.nombre || "otro artículo"}. Termínalo o vacíalo antes de agregar otro artículo.` };
+  }
+  lote.articulo_id = articuloId;
+  let agregados = 0, repetidos = 0;
+  for (const t of tickets) {
+    if (lote.tickets.some(x => x.sctask && x.sctask === t.sctask)) { repetidos++; continue; }
+    lote.tickets.push({ ticket: t.req, ritm: t.ritm, sctask: t.sctask, piezas: t.cantidad, sucursal: codigoSucursal(t.sucursal), lpn: "", series: [], listo: false });
+    agregados++;
+  }
+  guardarLote();
+  return { agregados, repetidos };
+}
+
+// Tickets que ya están en el carrito (para marcarlos en Pendientes)
+export function tareasEnCarrito() {
+  leerLote();
+  return new Set(lote.tickets.map(t => t.sctask).filter(Boolean));
+}
+
+export function abrirCarrito() {
+  abrirLote(recargarApp);
 }

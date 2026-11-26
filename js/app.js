@@ -9,6 +9,7 @@ import { iniciarTrucks, renderTrucks } from "./truck.js";
 import { iniciarExcel } from "./excel.js";
 import { iniciarSucursales, renderSucursales } from "./sucursales.js";
 import { iniciarAgenda, renderAgenda } from "./agenda.js";
+import { iniciarPendientes, renderPendientes } from "./pendientes.js";
 
 const ROLES = { admin: "Admin", editor: "Editor", lectura: "Solo lectura", pendiente: "Pendiente" };
 
@@ -38,6 +39,7 @@ async function recargar() {
   seguro("Trucks", renderTrucks);
   seguro("Sucursales", renderSucursales);
   seguro("Agenda", renderAgenda);
+  seguro("Pendientes", renderPendientes);
 }
 
 // Rol de quien entró: decide qué botones se ven (la base de datos también lo revisa)
@@ -166,4 +168,5 @@ seguro("Trucks", () => iniciarTrucks(recargar));
 seguro("Excel", () => iniciarExcel(recargar));
 seguro("Sucursales", () => iniciarSucursales(recargar));
 seguro("Agenda", () => iniciarAgenda(recargar));
+seguro("Pendientes", iniciarPendientes);
 iniciarAuth(recargar);
