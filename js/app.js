@@ -223,13 +223,26 @@ function anunciarPresencia() {
   canal.track({ correo: miCorreo, pestana: pestanaActual(), desde: new Date().toISOString() }).catch(() => {});
 }
 
+// Color fijo por persona (siempre le toca el mismo)
+const COLORES = ["#0A5AA8", "#0E7C86", "#6B4FA8", "#A8670E", "#1D7F55", "#B83434", "#3E5C76", "#8A4F7D"];
+const colorDe = correo => COLORES[[...correo].reduce((s, ch) => s + ch.charCodeAt(0), 0) % COLORES.length];
+const iniciales = correo => {
+  const base = String(correo || "").split("@")[0];
+  const partes = base.split(/[._-]/).filter(Boolean);
+  return (partes.length > 1 ? partes[0][0] + partes[1][0] : base.slice(0, 2)).toUpperCase();
+};
+
 function dibujarConectados() {
   const estadoPresencia = canal.presenceState();
   const otros = Object.entries(estadoPresencia)
     .filter(([correo]) => correo !== miCorreo)
     .map(([correo, sesiones]) => ({ correo, pestana: sesiones.at(-1)?.pestana }));
-  $("#enLinea").innerHTML = otros.map(o => `<span class="en-linea" title="${esc(o.correo)} · en ${esc(PESTANAS[o.pestana] || o.pestana || "la app")}">
-      <span class="punto"></span>${esc(nombreCorto(o.correo))}<span class="donde">· ${esc(PESTANAS[o.pestana] || "")}</span></span>`).join("");
+  const visibles = otros.slice(0, 4), resto = otros.slice(4);
+  $("#enLinea").innerHTML = visibles.map(o => `<span class="avatar" tabindex="0" style="background:${colorDe(o.correo)}" aria-label="${esc(o.correo)} está conectado">
+      ${esc(iniciales(o.correo))}
+      <span class="globo"><b>${esc(o.correo)}</b>Viendo ${esc(PESTANAS[o.pestana] || "la app")}</span>
+    </span>`).join("") +
+    (resto.length ? `<span class="avatar mas" tabindex="0">+${resto.length}<span class="globo">${resto.map(o => esc(o.correo)).join("<br>")}</span></span>` : "");
 }
 
 function describirCambio({ table, eventType }, r, quien) {
@@ -272,3 +285,20 @@ function avisar(html) {
   while (caja.children.length > 3) caja.firstElementChild.remove();
   setTimeout(() => { aviso.classList.add("sale"); setTimeout(() => aviso.remove(), 400); }, 6000);
 }
+
+// ---------- Modo claro / oscuro ----------
+const ICONO_LUNA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const ICONO_SOL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+
+function pintarBotonTema() {
+  const oscuro = document.documentElement.dataset.tema === "oscuro";
+  $("#btnTema").innerHTML = oscuro ? ICONO_SOL : ICONO_LUNA;
+  $("#btnTema").title = oscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+}
+$("#btnTema").addEventListener("click", () => {
+  const nuevo = document.documentElement.dataset.tema === "oscuro" ? "claro" : "oscuro";
+  document.documentElement.dataset.tema = nuevo;
+  try { localStorage.setItem("itmexico-tema", nuevo); } catch { /* se queda solo en esta visita */ }
+  pintarBotonTema();
+});
+pintarBotonTema();
